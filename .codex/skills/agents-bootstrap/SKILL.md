@@ -21,7 +21,7 @@ Collect these if not provided:
 - Role and objective
 - Non-negotiable constraints
 - Stack and data sources
-- Testing approach and available commands
+- Testing toolchain (unit/integration/e2e commands, frameworks, MCP tools)
 - Whether Issue CSV workflow is in scope
 
 Ask at most 2 clarification questions, then proceed with stated assumptions.
@@ -31,6 +31,7 @@ The final `AGENTS.md` must include (when applicable):
 - Role & objective
 - Constraints
 - Tech & data sources
+- Project testing strategy (tools + commands)
 - E2E loop (plan → issues → implement → test → review → commit → regression)
 - Plan & issue generation reference (use `plan` skill)
 - Issue CSV policy (if Issue CSV workflow is in scope)

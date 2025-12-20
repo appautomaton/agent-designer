@@ -13,6 +13,13 @@
 - <frameworks/tools>
 - <data sources>
 
+## Project testing strategy
+- Unit/integration: <framework + commands>
+- E2E/UI: <framework + commands>
+- Manual/other: <when used>
+- Build/run: <commands>
+- MCP tools: <server:tool list>
+
 ## E2E loop
 E2E loop = plan → issues → implement → test → review → commit → regression.
  

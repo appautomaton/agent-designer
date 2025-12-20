@@ -16,6 +16,10 @@ Draft structured plans for this repository and optionally save them to `plan/`.
 - Save plans to the repo `plan/` directory, not `~/.codex/plans`.
 - Use the naming pattern: `plan/YYYY-MM-DD_HH-mm-ss-<slug>.md`.
 - The plan must include a matching Issue CSV path: `issues/YYYY-MM-DD_HH-mm-ss-<slug>.csv`.
+- When selecting MCP tools, reference `docs/mcp-tools.md` for the correct `server:tool` names.
+
+## Clarifications
+- Ask up to 2 questions if the task is unclear; otherwise state assumptions and proceed.
 
 ## Plan workflow
 1) Restate the task and assumptions.
@@ -28,11 +32,10 @@ Draft structured plans for this repository and optionally save them to `plan/`.
    - List: `python3 .codex/skills/plan/scripts/list_plans.py`
    - Read frontmatter: `python3 .codex/skills/plan/scripts/read_plan_frontmatter.py <plan.md>`
 
-## Issue CSV (only if asked)
+## Issue CSV
+- Generate the Issue CSV after the plan is reviewed/approved.
 - Use `assets/_template.csv` and fill **all** required fields.
 - Follow `issues/README.md` for column meanings and CSV formatting.
+- Use `docs/mcp-tools.md` to populate the `Tools` column with valid `server:tool` names.
 - Validate with: `python3 .codex/skills/plan/scripts/validate_issues_csv.py <issues.csv>`.
 - If validation fails, fix and re-run until it passes.
-
-## Clarifications
-- Ask up to 2 questions if the task is unclear; otherwise state assumptions and proceed.
