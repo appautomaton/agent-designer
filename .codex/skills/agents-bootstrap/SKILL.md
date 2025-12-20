@@ -25,6 +25,7 @@ Collect these if not provided:
 - Whether Issue CSV workflow is in scope
 
 Ask at most 2 clarification questions, then proceed with stated assumptions.
+If the task continues across turns, re-invoke this skill to keep the rules active.
 
 ## Output requirements
 The final `AGENTS.md` must include (when applicable):

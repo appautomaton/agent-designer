@@ -20,6 +20,7 @@ Draft structured plans for this repository and optionally save them to `plan/`.
 
 ## Clarifications
 - Ask up to 2 questions if the task is unclear; otherwise state assumptions and proceed.
+- If the task continues across turns, re-invoke this skill to keep the rules active.
 
 ## Plan workflow
 1) Restate the task and assumptions.
