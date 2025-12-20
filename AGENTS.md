@@ -10,23 +10,15 @@
 
 ## E2E loop
 E2E loop = plan → issues → implement → test → review → commit → regression.
-1. **Restate request + assumptions**. Ask only essential clarifying questions.
-2. **Plan when scope is medium/complex** (multi-file, design choices, or cross-system). Produce a short plan before editing.
-3. **Define task contract** using an Issue CSV (or equivalent): scope, acceptance, test method, and status fields (TODO/DOING/DONE).
-4. **Execute per issue**: implement → test → review → commit → mark done.
-5. **Regression pass** after all issues; fix failures until acceptance criteria pass.
 
-## Planning rules
-- If a plan exists, follow it; propose edits rather than re-plan ad hoc.
+## Plan & issue generation
+- Use the `plan` skill for plan and Issue CSV generation.
 - Plans must include: steps, tests, risks, and rollback/safety notes.
-- Use `plan/_template.md` to create new plans in `plan/` (timestamped file name).
-- Naming: `plan/YYYY-MM-DD_HH-mm-ss-<slug>.md` and `issues/YYYY-MM-DD_HH-mm-ss-<slug>.csv` (same timestamp/slug).
 
 ## Issue CSV guidelines
 - Every row must include: ID, Title, Description, Acceptance, Test_Method, Tools, Dev_Status, Review1_Status, Regression_Status, Files, Dependencies, Notes.
 - Status values are enumerated (TODO/DOING/DONE), never percentages.
 - If a task lacks a test method, add one or flag it as a risk.
-- Use `issues/_template.csv` for new issue batches in `issues/`.
 - One plan maps to one issue CSV unless explicitly split.
 - Follow `issues/README.md` for column definitions and CSV formatting.
 
@@ -42,6 +34,8 @@ E2E loop = plan → issues → implement → test → review → commit → regr
 
 ## Testing policy
 - Follow `docs/testing-policy.md` for verification requirements and defaults.
+## MCP tools catalog
+- Follow `docs/mcp-tools.md` for available MCP tool names and usage.
 
 ## Safety
 - Avoid destructive commands unless explicitly requested.

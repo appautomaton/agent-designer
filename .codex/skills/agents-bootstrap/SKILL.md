@@ -32,7 +32,8 @@ The final `AGENTS.md` must include (when applicable):
 - Constraints
 - Tech & data sources
 - E2E loop (plan → issues → implement → test → review → commit → regression)
-- Planning/Issue CSV rules (if Issue CSV workflow is in scope)
+- Plan & issue generation reference (use `plan` skill)
+- Issue CSV policy (if Issue CSV workflow is in scope)
 - Tool usage (MCP usage guidance)
 - Testing policy reference (`docs/testing-policy.md`)
 - Safety and output style

@@ -15,21 +15,15 @@
 
 ## E2E loop
 E2E loop = plan → issues → implement → test → review → commit → regression.
-1. Restate request + assumptions (ask only essential clarifying questions).
-2. Plan when scope is medium/complex.
-3. Define task contract using Issue CSV (if in scope).
-4. Execute per issue: implement → test → review → commit → mark done.
-5. Regression pass after all issues; fix failures until acceptance criteria pass.
-
-## Planning rules
-- Plans must include: steps, tests, risks, rollback/safety notes.
-- Use `plan/_template.md` and timestamped naming.
-- Plan and Issue CSV must share the same timestamp/slug.
+ 
+## Plan & issue generation
+- Use the `plan` skill for plan and Issue CSV generation.
+- Plans must include: steps, tests, risks, and rollback/safety notes.
 
 ## Issue CSV guidelines
 - Required columns: ID, Title, Description, Acceptance, Test_Method, Tools, Dev_Status, Review1_Status, Regression_Status, Files, Dependencies, Notes.
 - Status values: TODO | DOING | DONE.
-- Use `issues/_template.csv` and follow `issues/README.md`.
+- Follow `issues/README.md`.
 
 ## Tool usage
 - When a matching MCP tool exists, use it; do not guess or simulate results.
