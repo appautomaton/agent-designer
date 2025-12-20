@@ -1,7 +1,7 @@
 ---
 mode: plan
 task: <short title>
-created_at: <YYYY-MM-DD>
+created_at: <ISO8601 timestamp>
 complexity: <simple|medium|complex>
 ---
 

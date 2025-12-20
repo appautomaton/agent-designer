@@ -10,7 +10,7 @@ metadata:
 Draft structured plans for this repository and optionally save them to `plan/`.
 
 ## Core rules
-- Use `assets/_template.md` as the structure and fill every section.
+- Use `assets/_template.md` as the plan structure and fill every section.
 - Do not edit code while planning.
 - Draft the plan in chat first; ask for confirmation before writing a plan file.
 - Save plans to the repo `plan/` directory, not `~/.codex/plans`.
@@ -21,7 +21,12 @@ Draft structured plans for this repository and optionally save them to `plan/`.
 1) Restate the task and assumptions.
 2) Draft the plan body in chat (no frontmatter) using the template.
 3) Ask: "Reply CONFIRM to write the plan file."
-4) On confirmation, write the plan file with frontmatter and the correct name.
+4) On confirmation, write the plan file with frontmatter via:
+   - `python3 .codex/skills/plan/scripts/create_plan.py --task "<short title>" --complexity <simple|medium|complex>`
+   - Provide the body via stdin or `--body-file`, or use `--template` for a starter.
+5) If you need to inspect existing plans:
+   - List: `python3 .codex/skills/plan/scripts/list_plans.py`
+   - Read frontmatter: `python3 .codex/skills/plan/scripts/read_plan_frontmatter.py <plan.md>`
 
 ## Issue CSV (only if asked)
 - Use `assets/_template.csv` and fill **all** required fields.
