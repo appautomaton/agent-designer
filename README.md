@@ -30,4 +30,4 @@ Notes
   - This repo is documentation- and workflow-first. Most changes are text.
   - Use official docs as the primary source of truth.
 
-Language: English | 中文 (README.zh-CN.md)
+Language: English | [中文](README.zh-CN.md)
