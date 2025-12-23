@@ -5,14 +5,24 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+htmlcov/
 
 # Env
 .env
 .venv/
+.direnv/
 
 # Editors
 .idea/
 .vscode/
+*.iml
 
 # Misc
 .cache/
+/.tmp/
+*.log
