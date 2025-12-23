@@ -15,6 +15,7 @@ Generate a concise, project-specific `AGENTS.md` tailored to the user's goal.
 - Keep the file concise and enforceable.
 - Draft in chat first; ask for confirmation before writing.
 - Before overwriting, create a backup: `AGENTS.md.bak.<timestamp>`.
+- If MCP tools are in scope and `docs/mcp-tools.md` is missing or stale, instruct to use the `mcp-tools-catalog` skill before finalizing `AGENTS.md`.
 
 ## Required inputs
 Collect these if not provided:

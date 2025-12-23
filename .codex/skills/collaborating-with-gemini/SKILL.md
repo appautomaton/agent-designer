@@ -17,6 +17,7 @@ This skill provides a lightweight bridge script that returns structured JSON and
 - For code changes, request **Unified Diff Patch ONLY** and forbid direct file modification.
 - Always capture `SESSION_ID` and reuse it for follow-ups to keep the collaboration conversation-aware.
 - Keep a short **Collaboration State Capsule** updated while this skill is active.
+- Default timeout: when invoking via the Codex command runner, set `timeout_ms` to **600000 (10 minutes)** unless a shorter/longer timeout is explicitly required.
 
 ## Quick start
 

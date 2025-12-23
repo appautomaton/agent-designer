@@ -34,6 +34,7 @@ E2E loop = plan → issues → implement → test → review → commit → regr
 
 ## Testing policy
 - Follow `docs/testing-policy.md` for verification requirements and defaults.
+
 ## MCP tools catalog
 - Follow `docs/mcp-tools.md` for available MCP tool names and usage.
 
