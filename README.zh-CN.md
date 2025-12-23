@@ -1,3 +1,5 @@
+Language: 中文 | [English](README.md)
+
 AGENT-DESIGNER（Codex Skills 工作区）
 =====================================
 
@@ -29,5 +31,3 @@ AGENT-DESIGNER（Codex Skills 工作区）
 备注
   - 本仓库以文档与流程为主，大多数变更为文本修改。
   - 以官方文档作为主要信息来源。
-
-Language: 中文 | [English](README.md)
