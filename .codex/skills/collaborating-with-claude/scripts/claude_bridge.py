@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Claude Code Bridge Script for Codex Skills.
 
@@ -12,8 +13,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 
-def read_output_lines(cmd: List[str], cwd: Optional[str] = None) -> Tuple[List[str], int]:
-    """Execute a command and capture stdout/stderr as a list of lines."""
+def read_output_lines(cmd: List[str], cwd: Optional[str] = None) -> Tuple[List[str], List[str], int]:
+    """Execute a command and capture stdout/stderr as lists of lines."""
     popen_cmd = cmd.copy()
     claude_path = shutil.which("claude") or cmd[0]
     popen_cmd[0] = claude_path
@@ -23,19 +24,16 @@ def read_output_lines(cmd: List[str], cwd: Optional[str] = None) -> Tuple[List[s
         shell=False,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stderr=subprocess.PIPE,
         universal_newlines=True,
         encoding="utf-8",
         cwd=cwd,
     )
 
-    lines: List[str] = []
-    if process.stdout:
-        for line in iter(process.stdout.readline, ""):
-            lines.append(line.rstrip("\n"))
-        process.stdout.close()
-    returncode = process.wait()
-    return lines, returncode
+    stdout, stderr = process.communicate()
+    stdout_lines = stdout.splitlines() if stdout else []
+    stderr_lines = stderr.splitlines() if stderr else []
+    return stdout_lines, stderr_lines, process.returncode
 
 
 def extract_text(value: Any) -> str:
@@ -102,7 +100,7 @@ def parse_stream_json(lines: List[str]) -> Tuple[Optional[str], str, List[Dict[s
             continue
         except Exception as error:
             err_message += "\n\n[unexpected error] " + f"Unexpected error: {error}. Line: {stripped!r}"
-            break
+            continue
 
     return session_id, agent_messages, all_messages, err_message
 
@@ -131,12 +129,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Claude Code Bridge")
     parser.add_argument("--PROMPT", required=True, help="Instruction for the task to send to claude.")
     parser.add_argument("--cd", required=True, type=Path, help="Set the workspace root for claude before executing the task.")
-    parser.add_argument("--SESSION_ID", default="", help="Resume the specified session of claude.")
-    parser.add_argument("--session-id", dest="session_id", default="", help="Use a specific session ID (UUID).")
-    parser.add_argument("--continue", dest="continue_session", action="store_true", help="Continue the most recent session.")
+    session_group = parser.add_mutually_exclusive_group()
+    session_group.add_argument("--SESSION_ID", default="", help="Resume the specified session of claude.")
+    session_group.add_argument("--session-id", dest="session_id", default="", help="Use a specific session ID (UUID).")
+    session_group.add_argument("--continue", dest="continue_session", action="store_true", help="Continue the most recent session.")
     parser.add_argument("--fork-session", action="store_true", help="Fork session when resuming/continuing.")
     parser.add_argument("--no-session-persistence", action="store_true", help="Disable session persistence (print mode only).")
-    parser.add_argument("--model", default="", help="Model override (use only when explicitly requested).")
+    parser.add_argument("--model", default="", help="Model override (alias like 'sonnet'/'opus', or a full model name).")
     parser.add_argument("--fallback-model", default="", help="Fallback model when the default is overloaded.")
     parser.add_argument("--max-budget-usd", default="", help="Max USD budget for the call (print mode only).")
     parser.add_argument("--json-schema", default="", help="JSON schema for structured output validation.")
@@ -254,15 +253,15 @@ def main() -> None:
     if args.agents:
         cmd.extend(["--agents", args.agents])
 
-    lines, returncode = read_output_lines(cmd, cwd=cd.absolute().as_posix())
+    stdout_lines, stderr_lines, returncode = read_output_lines(cmd, cwd=cd.absolute().as_posix())
 
     if args.output_format == "stream-json":
-        session_id, agent_messages, all_messages, err_message = parse_stream_json(lines)
+        session_id, agent_messages, all_messages, err_message = parse_stream_json(stdout_lines)
     elif args.output_format == "json":
-        session_id, agent_messages, all_messages, err_message = parse_json_output(lines)
+        session_id, agent_messages, all_messages, err_message = parse_json_output(stdout_lines)
     else:
         session_id = None
-        agent_messages = "\n".join(lines).strip()
+        agent_messages = "\n".join(stdout_lines).strip()
         all_messages = []
         err_message = ""
 
@@ -273,19 +272,14 @@ def main() -> None:
         success = False
         err_message = "Failed to get `SESSION_ID` from the claude session.\n\n" + err_message
 
-    if success and len(agent_messages) == 0:
-        success = False
-        err_message = (
-            "Failed to retrieve `agent_messages` from the Claude session. "
-            "Try `--output-format stream-json` or `--include-partial-messages`.\n\n"
-            + err_message
-        )
+    stderr_text = "\n".join(stderr_lines).strip()
+    if stderr_text:
+        err_message = (err_message + "\n\n" if err_message else "") + "[stderr]\n" + stderr_text
 
     result: Dict[str, Any] = {"success": success}
     if session_id is not None:
         result["SESSION_ID"] = session_id
-    if agent_messages:
-        result["agent_messages"] = agent_messages
+    result["agent_messages"] = agent_messages
     if success:
         pass
     else:

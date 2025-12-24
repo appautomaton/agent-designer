@@ -1,5 +1,7 @@
 # Claude Prompt Template (Token-Efficient)
 
+Note: Prefer choosing models via CLI aliases (e.g., `--model sonnet` for routine work, `--model opus` for harder tasks) instead of hard-coding versioned model IDs. If you omit `--model`, Claude Code uses its configured default.
+
 ## Analysis / Plan (no code changes)
 
 ```
