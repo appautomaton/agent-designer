@@ -39,3 +39,8 @@ Notes
   - Use official docs as the primary source of truth.
   - If invoking bridge scripts directly, prefer `python3` (some systems don't have `python`).
   - Skill authoring best-practice: reference `docs/SKILLs/agent-skills-standard.md` in chat (e.g., "@docs/SKILLs/agent-skills-standard.md") and iterate.
+
+Acknowledgements
+  - Initial inspiration:
+    - https://github.com/anthropics/skills
+    - https://github.com/GuDaStudio/skills

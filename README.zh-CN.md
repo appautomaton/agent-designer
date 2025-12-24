@@ -39,3 +39,8 @@ AGENT-DESIGNER（Codex Skills 工作区）
   - 以官方文档作为主要信息来源。
   - 如需直接运行 bridge 脚本，优先使用 `python3`（部分系统不提供 `python` 命令）。
   - SKILL 编写最佳范式：在对话中引用 `docs/SKILLs/agent-skills-standard.md`（例如 "@docs/SKILLs/agent-skills-standard.md"）并迭代完善。
+
+致谢
+  - 初始灵感来源：
+    - https://github.com/anthropics/skills
+    - https://github.com/GuDaStudio/skills
