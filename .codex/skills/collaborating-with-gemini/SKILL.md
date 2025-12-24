@@ -13,7 +13,8 @@ This skill provides a lightweight bridge script that returns structured JSON and
 
 ## Core rules
 - Gemini is a collaborator; you own the final result and must verify changes locally.
-- Prefer file/line references over pasting snippets. Let Gemini read the repo via `--cd`.
+- Do not invoke `gemini` directly; always use the bridge script (`scripts/gemini_bridge.py`) so output/session handling stays consistent.
+- Prefer file/line references over pasting snippets. Run the bridge with `--cd` set to the repo root (it sets the `gemini` process working directory).
 - For code changes, request **Unified Diff Patch ONLY** and forbid direct file modification.
 - Always capture `SESSION_ID` and reuse it for follow-ups to keep the collaboration conversation-aware.
 - Keep a short **Collaboration State Capsule** updated while this skill is active.
@@ -22,7 +23,7 @@ This skill provides a lightweight bridge script that returns structured JSON and
 ## Quick start
 
 ```bash
-python .codex/skills/collaborating-with-gemini/scripts/gemini_bridge.py --cd "." --PROMPT "Review src/auth.py around login() and propose fixes. OUTPUT: Unified Diff Patch ONLY."
+python3 .codex/skills/collaborating-with-gemini/scripts/gemini_bridge.py --cd "." --PROMPT "Review src/auth.py around login() and propose fixes. OUTPUT: Unified Diff Patch ONLY."
 ```
 
 **Output:** JSON with `success`, `SESSION_ID`, `agent_messages`, and optional `error` / `all_messages`.
@@ -31,10 +32,10 @@ python .codex/skills/collaborating-with-gemini/scripts/gemini_bridge.py --cd "."
 
 ```bash
 # Start a session
-python .codex/skills/collaborating-with-gemini/scripts/gemini_bridge.py --cd "." --PROMPT "Analyze the bug in foo(). Keep it short."
+python3 .codex/skills/collaborating-with-gemini/scripts/gemini_bridge.py --cd "." --PROMPT "Analyze the bug in foo(). Keep it short."
 
 # Continue the same session
-python .codex/skills/collaborating-with-gemini/scripts/gemini_bridge.py --cd "." --SESSION_ID "<SESSION_ID>" --PROMPT "Now propose a minimal fix as Unified Diff Patch ONLY."
+python3 .codex/skills/collaborating-with-gemini/scripts/gemini_bridge.py --cd "." --SESSION_ID "<SESSION_ID>" --PROMPT "Now propose a minimal fix as Unified Diff Patch ONLY."
 ```
 
 ## Prompting patterns (token efficient)
