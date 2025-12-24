@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Gemini Bridge Script for Codex Skills.
 
@@ -13,11 +14,11 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Generator, List, Optional
+from typing import List, Optional, Tuple
 
 
-def run_shell_command(cmd: List[str], cwd: Optional[str] = None) -> Generator[str, None, None]:
-    """Execute a command and stream its output line-by-line."""
+def run_shell_command(cmd: List[str], cwd: Optional[str] = None) -> Tuple[List[str], List[str], int]:
+    """Execute a command and return stdout/stderr as lists of lines."""
     popen_cmd = cmd.copy()
     gemini_path = shutil.which("gemini") or cmd[0]
     popen_cmd[0] = gemini_path
@@ -27,7 +28,7 @@ def run_shell_command(cmd: List[str], cwd: Optional[str] = None) -> Generator[st
         shell=False,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stderr=subprocess.PIPE,
         universal_newlines=True,
         encoding="utf-8",
         cwd=cwd,
@@ -35,6 +36,8 @@ def run_shell_command(cmd: List[str], cwd: Optional[str] = None) -> Generator[st
 
     output_queue: "queue.Queue[Optional[str]]" = queue.Queue()
     GRACEFUL_SHUTDOWN_DELAY = 0.3
+    stdout_lines: List[str] = []
+    stderr_lines: List[str] = []
 
     def is_turn_completed(line: str) -> bool:
         try:
@@ -55,17 +58,25 @@ def run_shell_command(cmd: List[str], cwd: Optional[str] = None) -> Generator[st
             process.stdout.close()
         output_queue.put(None)
 
-    thread = threading.Thread(target=read_output)
-    thread.start()
+    def read_stderr() -> None:
+        if process.stderr:
+            for line in iter(process.stderr.readline, ""):
+                stderr_lines.append(line.rstrip("\n"))
+            process.stderr.close()
+
+    stdout_thread = threading.Thread(target=read_output)
+    stderr_thread = threading.Thread(target=read_stderr)
+    stdout_thread.start()
+    stderr_thread.start()
 
     while True:
         try:
             line = output_queue.get(timeout=0.5)
             if line is None:
                 break
-            yield line
+            stdout_lines.append(line)
         except queue.Empty:
-            if process.poll() is not None and not thread.is_alive():
+            if process.poll() is not None and not stdout_thread.is_alive():
                 break
 
     try:
@@ -73,15 +84,18 @@ def run_shell_command(cmd: List[str], cwd: Optional[str] = None) -> Generator[st
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait()
-    thread.join(timeout=5)
+    stdout_thread.join(timeout=5)
+    stderr_thread.join(timeout=5)
 
     while not output_queue.empty():
         try:
             line = output_queue.get_nowait()
             if line is not None:
-                yield line
+                stdout_lines.append(line)
         except queue.Empty:
             break
+
+    return stdout_lines, stderr_lines, process.returncode or 0
 
 
 def windows_escape(prompt: str) -> str:
@@ -116,6 +130,14 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    if shutil.which("gemini") is None:
+        result = {
+            "success": False,
+            "error": "Gemini CLI not found in PATH. Install it and ensure `gemini` is available before using this skill.",
+        }
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return
+
     cd: Path = args.cd
     if not cd.exists():
         result = {
@@ -149,7 +171,9 @@ def main() -> None:
     err_message = ""
     session_id = None
 
-    for line in run_shell_command(cmd, cwd=cd.absolute().as_posix()):
+    stdout_lines, stderr_lines, returncode = run_shell_command(cmd, cwd=cd.absolute().as_posix())
+
+    for line in stdout_lines:
         try:
             line_dict = json.loads(line.strip())
             all_messages.append(line_dict)
@@ -168,9 +192,13 @@ def main() -> None:
             continue
         except Exception as error:
             err_message += "\n\n[unexpected error] " + f"Unexpected error: {error}. Line: {line!r}"
-            break
+            continue
 
     result = {}
+
+    success = returncode == 0
+    if not success and not err_message:
+        err_message = f"Gemini CLI exited with non-zero status: {returncode}"
 
     if session_id is None:
         success = False
@@ -178,17 +206,12 @@ def main() -> None:
     else:
         result["SESSION_ID"] = session_id
 
-    if success and len(agent_messages) == 0:
-        success = False
-        err_message = (
-            "Failed to retrieve `agent_messages` from the Gemini session. This might be due to Gemini performing a tool call. "
-            "You can continue using the `SESSION_ID` to proceed with the conversation.\n\n"
-            + err_message
-        )
+    stderr_text = "\n".join(stderr_lines).strip()
+    if stderr_text:
+        err_message = (err_message + "\n\n" if err_message else "") + "[stderr]\n" + stderr_text
 
-    if success:
-        result["agent_messages"] = agent_messages
-    else:
+    result["agent_messages"] = agent_messages
+    if not success:
         result["error"] = err_message
 
     result["success"] = success

@@ -27,3 +27,4 @@ htmlcov/
 /.tmp/
 *.log
 tmp/
+.claude_home/
