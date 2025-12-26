@@ -6,18 +6,22 @@ AGENT-DESIGNER（Codex Skills 工作区）
 目的
   设计并维护 Codex/Claude 风格的 SKILLs，同时维护相关文档与 MCP 工具目录。
 
-如何开始一个新项目
-0)（可选）将本仓库作为模板：clone 后删除 git 历史（`rm -rf .git`），再重新初始化（`git init`）。
-1) 生成 docs/mcp-tools.md（mcp-tools-catalog）。
-   - 原因：Codex 不一定会主动调用 MCP；把可用工具清单列出来，规划时更容易 "指哪打哪"。
-   - 示例提示："根据启用的 MCP 服务器生成 docs/mcp-tools.md。"
-2) 创建 AGENTS.md（agents-bootstrap）。
-   - 原因：会根据项目要求把 "issues 驱动的开发工作流" 框架导入到 AGENTS.md 中。
-   - 小提示：也可以先和 Codex 多轮对话明确方向，再让它 "bootstrap my AGENTS.md"。
-3) 创建计划/Issue CSV（plan）。
-   - 备注：本仓库提供了自定义 plan 技能（`.codex/skills/plan/`），会覆盖系统自带 plan。
-   - 模板：`.codex/skills/plan/assets/_template.md` 与 `.codex/skills/plan/assets/_template.csv`。
-   - 示例提示："为 <目标> 生成计划与 Issue CSV。"
+> [!TIP]
+> **如何开始一个新项目**
+> 0)（可选）将本仓库作为模板：clone 后删除 git 历史（`rm -rf .git`），再重新初始化（`git init`）。
+> 1) 生成 docs/mcp-tools.md（mcp-tools-catalog）。
+>    - 原因：Codex 不一定会主动调用 MCP；把可用工具清单列出来，规划时更容易 "指哪打哪"。
+>    - 示例提示："根据启用的 MCP 服务器生成 docs/mcp-tools.md。"
+> 2) 创建 AGENTS.md（agents-bootstrap）。
+>    - 原因：会根据项目要求把 "issues 驱动的开发工作流" 框架导入到 AGENTS.md 中。
+>    - 小提示：也可以先和 Codex 多轮对话明确方向，再让它 "bootstrap my AGENTS.md"。
+> 3) 创建计划/Issue CSV（plan）。
+>    - 备注：本仓库提供了自定义 plan 技能（`.codex/skills/plan/`），会覆盖系统自带 plan。
+>    - 模板：`.codex/skills/plan/assets/_template.md` 与 `.codex/skills/plan/assets/_template.csv`。
+>    - 示例提示："为 <目标> 生成计划与 Issue CSV。"
+
+> [!CAUTION]
+> `collaborating-with-gemini` 的协作流程以 `.codex_uploads/` 作为截图/图片中转目录。不要把 `.codex_uploads/` 加入 `.gitignore`，否则 Gemini 可能会拒绝读取被忽略的路径。
 
 关键文件
   - AGENTS.md（项目规则）

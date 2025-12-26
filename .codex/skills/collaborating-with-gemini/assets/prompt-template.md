@@ -47,3 +47,17 @@ Constraints:
 Input diff:
 <paste unified diff here>
 ```
+
+## Image Analysis (screenshot in workspace)
+
+```
+Task:
+- Analyze the UI screenshot at `.codex_uploads/<filename>.png`.
+
+Constraints:
+- Describe what you see, then answer: <specific question>.
+- Keep observations concise.
+
+Output:
+- Bullet list of observations and recommendations.
+```

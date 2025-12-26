@@ -126,7 +126,7 @@ def main() -> None:
         action="store_true",
         help="Return all messages (e.g. tool calls, traces) from the gemini session. By default only returns the assistant message text.",
     )
-    parser.add_argument("--model", default="", help="Model override (strictly prohibited unless explicitly requested by the user).")
+    parser.add_argument("--model", default="", help="Override the Gemini model.")
 
     args = parser.parse_args()
 
@@ -148,8 +148,6 @@ def main() -> None:
         return
 
     prompt = args.PROMPT
-    if os.name == "nt":
-        prompt = windows_escape(prompt)
 
     # Prefer positional prompt (the flag form has been deprecated in newer gemini-cli versions).
     cmd = ["gemini", "-o", "stream-json"]
@@ -196,7 +194,8 @@ def main() -> None:
 
     result = {}
 
-    success = returncode == 0
+    # Treat SIGTERM (-15 on Unix, 15 on Windows) as success since we terminate Gemini ourselves.
+    success = returncode in (0, -15, 15)
     if not success and not err_message:
         err_message = f"Gemini CLI exited with non-zero status: {returncode}"
 
