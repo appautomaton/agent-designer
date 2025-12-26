@@ -9,7 +9,17 @@ metadata:
 
 Use Claude Code CLI as a collaborator while keeping Codex as the primary implementer.
 
-This skill provides a lightweight bridge script that returns structured JSON and supports multi-turn sessions via `SESSION_ID`.
+This skill provides a lightweight bridge script (`scripts/claude_bridge.py`) that returns structured JSON and supports multi-turn sessions via `SESSION_ID`.
+
+## When to use
+- You want a second opinion (design tradeoffs, edge cases, missing tests).
+- You want Claude to propose or review a **unified diff** (Claude does not edit files).
+- You want multi-turn back-and-forth while you implement locally.
+
+## When not to use
+- The task is trivial or one-shot (do it directly in Codex).
+- You need authoritative facts that require browsing/citations (Claude may guess).
+- You might paste sensitive data (secrets, private keys, prod logs).
 
 ## Core rules
 - Claude is a collaborator; you own the final result and must verify changes locally.
@@ -32,10 +42,17 @@ Claude Code supports model aliases, so you can use `--model sonnet` / `--model o
 - If you omit `--model`, Claude Code uses its configured default (typically from `~/.claude/settings.json`, optionally overridden by `.claude/settings.json` and `.claude/settings.local.json`).
 - If you need strict reproducibility, pass a full model name via `--model <full-name>`.
 
-## Quick start
+## Quick start (shell-safe)
+
+⚠️ If your prompt contains Markdown backticks (`` `like/this` ``), do **not** pass it directly via `--PROMPT "..."` (your shell may treat backticks as command substitution). Use a heredoc instead; see `references/shell-quoting.md`.
 
 ```bash
-python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py --cd "." --PROMPT "Review src/auth.py around login() and propose fixes. OUTPUT: Unified Diff Patch ONLY."
+PROMPT="$(cat <<'EOF'
+Review src/auth.py around login() and propose fixes.
+OUTPUT: Unified Diff Patch ONLY.
+EOF
+)"
+python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py --cd "." --model sonnet --PROMPT "$PROMPT" --output-format stream-json
 ```
 
 **Output:** JSON with `success`, `SESSION_ID`, `agent_messages`, and optional `error` / `all_messages`.
@@ -44,10 +61,18 @@ python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py --cd ".
 
 ```bash
 # Start a session
-python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py --cd "." --PROMPT "Analyze the bug in foo(). Keep it short."
+PROMPT="$(cat <<'EOF'
+Analyze the bug in foo(). Keep it short.
+EOF
+)"
+python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py --cd "." --PROMPT "$PROMPT" --output-format stream-json
 
 # Continue the same session
-python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py --cd "." --SESSION_ID "<SESSION_ID>" --PROMPT "Now propose a minimal fix as Unified Diff Patch ONLY."
+PROMPT="$(cat <<'EOF'
+Now propose a minimal fix as Unified Diff Patch ONLY.
+EOF
+)"
+python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py --cd "." --SESSION_ID "<SESSION_ID>" --PROMPT "$PROMPT" --output-format stream-json
 ```
 
 ## Prompting patterns (token efficient)
@@ -73,6 +98,15 @@ Append this to prompts when requesting code:
 - UI/UX and readability feedback
 - Review of a proposed patch (risk spotting, missing tests)
 
+## Verification
+- Smoke-test the bridge: `python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py --help`.
+- If you need a session: run one prompt with `--output-format stream-json` and confirm the JSON contains `success: true` and a `SESSION_ID`.
+
+## Safety & guardrails
+- Never paste secrets (private keys, API keys, seed phrases) into prompts.
+- For code changes, request **Unified Diff Patch ONLY** and apply changes yourself.
+- Treat Claude output as suggestions; verify locally (tests, lint, build) before merging.
+
 ## Collaboration State Capsule
 Keep this short block updated near the end of your reply while collaborating:
 
@@ -85,3 +119,7 @@ Last ask:
 Claude summary:
 Next ask:
 ```
+
+## References
+- `assets/prompt-template.md` (prompt patterns)
+- `references/shell-quoting.md` (shell quoting/backticks)

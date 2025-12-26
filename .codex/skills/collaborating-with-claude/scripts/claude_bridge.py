@@ -165,6 +165,8 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    session_id_expected = args.output_format in ("json", "stream-json") and not args.no_session_persistence
+
     cd: Path = args.cd
     if not cd.exists():
         result = {
@@ -260,7 +262,7 @@ def main() -> None:
     elif args.output_format == "json":
         session_id, agent_messages, all_messages, err_message = parse_json_output(stdout_lines)
     else:
-        session_id = None
+        session_id = args.SESSION_ID or args.session_id or None
         agent_messages = "\n".join(stdout_lines).strip()
         all_messages = []
         err_message = ""
@@ -268,7 +270,7 @@ def main() -> None:
     success = returncode == 0
     if not success and not err_message:
         err_message = f"Claude Code exited with non-zero status: {returncode}"
-    if session_id is None:
+    if session_id is None and session_id_expected:
         success = False
         err_message = "Failed to get `SESSION_ID` from the claude session.\n\n" + err_message
 
