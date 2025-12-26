@@ -1,6 +1,6 @@
 ---
 name: collaborating-with-gemini
-description: Delegate coding tasks to Gemini CLI for prototyping, debugging, and code review. Supports multi-turn sessions via SESSION_ID. Optimized for low-token, file/line-based handoff.
+description: Use the Gemini CLI to consult Gemini and delegate coding tasks for prototyping, debugging, and code review. Supports multi-turn sessions via SESSION_ID. Optimized for low-token, file/line-based handoff.
 metadata:
   short-description: Delegate to Gemini CLI
 ---
@@ -20,10 +20,17 @@ This skill provides a lightweight bridge script that returns structured JSON and
 - Keep a short **Collaboration State Capsule** updated while this skill is active.
 - Default timeout: when invoking via the Codex command runner, set `timeout_ms` to **600000 (10 minutes)** unless a shorter/longer timeout is explicitly required.
 
-## Quick start
+## Quick start (shell-safe)
+
+⚠️ If your prompt contains Markdown backticks (`` `like/this` ``), do **not** pass it directly via `--PROMPT "..."` (your shell may treat backticks as command substitution). Use a heredoc instead; see `references/shell-quoting.md`.
 
 ```bash
-python3 .codex/skills/collaborating-with-gemini/scripts/gemini_bridge.py --cd "." --PROMPT "Review src/auth.py around login() and propose fixes. OUTPUT: Unified Diff Patch ONLY."
+PROMPT="$(cat <<'EOF'
+Review src/auth.py around login() and propose fixes.
+OUTPUT: Unified Diff Patch ONLY.
+EOF
+)"
+python3 .codex/skills/collaborating-with-gemini/scripts/gemini_bridge.py --cd "." --PROMPT "$PROMPT"
 ```
 
 **Output:** JSON with `success`, `SESSION_ID`, `agent_messages`, and optional `error` / `all_messages`.
@@ -32,10 +39,18 @@ python3 .codex/skills/collaborating-with-gemini/scripts/gemini_bridge.py --cd ".
 
 ```bash
 # Start a session
-python3 .codex/skills/collaborating-with-gemini/scripts/gemini_bridge.py --cd "." --PROMPT "Analyze the bug in foo(). Keep it short."
+PROMPT="$(cat <<'EOF'
+Analyze the bug in foo(). Keep it short.
+EOF
+)"
+python3 .codex/skills/collaborating-with-gemini/scripts/gemini_bridge.py --cd "." --PROMPT "$PROMPT"
 
 # Continue the same session
-python3 .codex/skills/collaborating-with-gemini/scripts/gemini_bridge.py --cd "." --SESSION_ID "<SESSION_ID>" --PROMPT "Now propose a minimal fix as Unified Diff Patch ONLY."
+PROMPT="$(cat <<'EOF'
+Now propose a minimal fix as Unified Diff Patch ONLY.
+EOF
+)"
+python3 .codex/skills/collaborating-with-gemini/scripts/gemini_bridge.py --cd "." --SESSION_ID "<SESSION_ID>" --PROMPT "$PROMPT"
 ```
 
 ## Prompting patterns (token efficient)
@@ -73,3 +88,7 @@ Last ask:
 Gemini summary:
 Next ask:
 ```
+
+## References
+- `assets/prompt-template.md` (prompt patterns)
+- `references/shell-quoting.md` (shell quoting/backticks)

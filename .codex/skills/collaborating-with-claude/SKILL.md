@@ -1,6 +1,6 @@
 ---
 name: collaborating-with-claude
-description: Delegate coding tasks to Claude Code CLI for prototyping, debugging, and code review. Supports multi-turn sessions via SESSION_ID. Optimized for low-token, file/line-based handoff.
+description: Use the Claude Code CLI to consult Claude and delegate coding tasks for prototyping, debugging, and code review. Supports multi-turn sessions via SESSION_ID. Optimized for low-token, file/line-based handoff.
 metadata:
   short-description: Delegate to Claude Code CLI
 ---
@@ -101,6 +101,7 @@ Append this to prompts when requesting code:
 ## Verification
 - Smoke-test the bridge: `python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py --help`.
 - If you need a session: run one prompt with `--output-format stream-json` and confirm the JSON contains `success: true` and a `SESSION_ID`.
+- Note: `--output-format text` won’t include a newly generated session id; use `stream-json`/`json` to capture it. If you resume with `--SESSION_ID` in `text` mode, the bridge echoes that `SESSION_ID` in its JSON output.
 
 ## Safety & guardrails
 - Never paste secrets (private keys, API keys, seed phrases) into prompts.
