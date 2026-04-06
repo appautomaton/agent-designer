@@ -22,11 +22,10 @@ Design structured, reusable skills that give your agents clear workflows, safe d
 |---|---|
 | `issue-driven-dev` | Plan → Issue CSV → autonomous execution with status tracking |
 
-**Standards & testing** — how to author skills and verify work:
+**Testing** — how to verify work:
 
 | Resource | Purpose |
 |---|---|
-| `docs/SKILLs/agent-skills-standard.md` | How to structure portable `SKILL.md` files |
 | `skills/testing/` | Testing principles, patterns, and policies |
 
 ## Getting started
@@ -48,7 +47,6 @@ skills/                          ← skill source (the real content)
   issue-driven-dev/              ← plan/CSV workflow + templates + scripts
   testing/                       ← testing principles and patterns
 .codex/skills/                   ← symlinks (Codex wiring)
-docs/SKILLs/                     ← skill authoring standard
 AGENTS.md                        ← project-specific rules
 AGENTS.issues.template.md        ← issue-driven workflow (apply on top of AGENTS.md)
 ```

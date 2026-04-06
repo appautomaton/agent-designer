@@ -22,11 +22,10 @@ Language: 中文 | [English](README.md)
 |---|---|
 | `issue-driven-dev` | 计划 → Issue CSV → 自主执行并跟踪状态 |
 
-**标准与测试** — 如何编写技能和验证工作：
+**测试** — 如何验证工作：
 
 | 资源 | 用途 |
 |---|---|
-| `docs/SKILLs/agent-skills-standard.md` | 如何编写可移植的 `SKILL.md` 文件 |
 | `skills/testing/` | 测试原则、模式和策略 |
 
 ## 快速开始
@@ -48,7 +47,6 @@ skills/                          ← 技能源码（核心内容）
   issue-driven-dev/              ← 计划/CSV 工作流 + 模板 + 脚本
   testing/                       ← 测试原则和模式
 .codex/skills/                   ← 符号链接（Codex 接入层）
-docs/SKILLs/                     ← 技能编写标准
 AGENTS.md                        ← 项目专属规则
 AGENTS.issues.template.md        ← Issue 驱动工作流（叠加到 AGENTS.md）
 ```
