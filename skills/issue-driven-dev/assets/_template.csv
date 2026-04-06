@@ -1,0 +1,4 @@
+ID,Title,Description,Acceptance,Test_Method,Tools,Dev_Status,Review1_Status,Regression_Status,Files,Dependencies,Notes
+A1,Backend token validation,"Handle invalid/expired tokens in /auth/login","Returns 401 with structured error code","pytest tests/test_auth.py -k test_invalid_token",none,TODO,TODO,TODO,"src/auth/login.ts | src/auth/token.ts",none,"Phase 1"
+A2,SSO provider integration,"Integrate SSO provider OAuth flow","User redirected to SSO and returned with valid session","pytest tests/test_auth.py -k test_sso_flow",none,TODO,TODO,TODO,"src/auth/sso.ts | src/auth/session.ts",A1,"Phase 1"
+A3,Dashboard renders after SSO,"Dashboard loads within 3s after SSO login","Page renders with user profile and data","manual: login via SSO then open /dashboard",playwright:browser_navigate,TODO,TODO,TODO,"src/pages/dashboard.tsx",A2,"Phase 2"

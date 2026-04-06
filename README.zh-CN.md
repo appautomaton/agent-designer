@@ -1,50 +1,75 @@
 Language: 中文 | [English](README.md)
 
-AGENT-DESIGNER（Codex Skills 工作区）
-=====================================
+# Agent Designer
 
-目的
-  设计并维护 Codex/Claude 风格的 SKILLs，同时维护相关文档与 MCP 工具目录。
+面向 AI 编程 Agent 的可移植技能工作区 — 支持 Codex、Claude Code 和 Gemini。
+
+设计结构化、可复用的技能，让你的 Agent 拥有清晰的工作流程、安全的默认行为和多轮协作能力。克隆本仓库作为任何项目的起点，让 Agent 有章可循地工作，而不是自由发挥。
+
+## 包含内容
+
+**协作技能** — 让 Agent 之间通过 bridge 脚本互相委托任务，支持会话连续性：
+
+| 技能 | 用途 |
+|---|---|
+| `collaborating-with-claude` | 委托给 Claude Code CLI（评审、差异对比、咨询） |
+| `collaborating-with-gemini` | 委托给 Gemini CLI（评审、网络搜索、图片分析） |
+| `collaborating-with-codex` | 委托给 Codex CLI（实现、诊断、评审） |
+
+**Issue 驱动开发** — 将工作结构化为计划和可追踪的 Issue CSV：
+
+| 技能 | 用途 |
+|---|---|
+| `issue-driven-dev` | 计划 → Issue CSV → 自主执行并跟踪状态 |
+
+**标准与测试** — 如何编写技能和验证工作：
+
+| 资源 | 用途 |
+|---|---|
+| `docs/SKILLs/agent-skills-standard.md` | 如何编写可移植的 `SKILL.md` 文件 |
+| `skills/testing/` | 测试原则、模式和策略 |
+
+## 快速开始
 
 > [!TIP]
-> **如何开始一个新项目**
-> 0)（可选）将本仓库作为模板：clone 后删除 git 历史（`rm -rf .git`），再重新初始化（`git init`）。
-> 1) 生成 docs/mcp-tools.md（mcp-tools-catalog）。
->    - 原因：Codex 不一定会主动调用 MCP；把可用工具清单列出来，规划时更容易 "指哪打哪"。
->    - 示例提示："根据启用的 MCP 服务器生成 docs/mcp-tools.md。"
-> 2) 创建 AGENTS.md（agents-bootstrap）。
->    - 原因：会根据项目要求把 "issues 驱动的开发工作流" 框架导入到 AGENTS.md 中。
->    - 小提示：也可以先和 Codex 多轮对话明确方向，再让它 "bootstrap my AGENTS.md"。
-> 3) 创建计划/Issue CSV（plan）。
->    - 备注：本仓库提供了自定义 plan 技能（`.codex/skills/plan/`），会覆盖系统自带 plan。
->    - 模板：`.codex/skills/plan/assets/_template.md` 与 `.codex/skills/plan/assets/_template.csv`。
->    - 示例提示："为 <目标> 生成计划与 Issue CSV。"
+> 1)（可选）将本仓库作为模板：clone 后删除 git 历史（`rm -rf .git`），再重新初始化（`git init`）。
+> 2) 编写 `AGENTS.md` — 项目角色、约束、技术栈、安全规则。
+>    - 如需添加 Issue 驱动工作流：让 Agent "将 `AGENTS.issues.template.md` 应用到 `AGENTS.md`"。
+> 3) 开始工作 — 让 Agent 创建计划、生成 Issue CSV，或与其他 Agent 协作。
+>    - 示例："为 <目标> 创建计划和 Issue CSV。"
 
-> [!CAUTION]
-> `collaborating-with-gemini` 的协作流程以 `.codex_uploads/` 作为截图/图片中转目录。不要把 `.codex_uploads/` 加入 `.gitignore`，否则 Gemini 可能会拒绝读取被忽略的路径。
+## 项目结构
 
-关键文件
-  - AGENTS.md（项目规则）
-  - .codex/skills/（所有技能）
-  - docs/SKILLs/agent-skills-standard.md（技能设计标准）
-  - docs/mcp-tools.md（MCP 工具目录）
-  - docs/testing-policy.md（测试默认规则）
-  - issues/README.md（Issue CSV 格式）
+```
+skills/                          ← 技能源码（核心内容）
+  collaborating-with-claude/     ← bridge 脚本 + SKILL.md + 参考文档
+  collaborating-with-gemini/     ← bridge 脚本 + SKILL.md + 参考文档
+  collaborating-with-codex/      ← bridge 脚本 + SKILL.md + 参考文档 + 提示词模板
+  issue-driven-dev/              ← 计划/CSV 工作流 + 模板 + 脚本
+  testing/                       ← 测试原则和模式
+.codex/skills/                   ← 符号链接（Codex 接入层）
+docs/SKILLs/                     ← 技能编写标准
+AGENTS.md                        ← 项目专属规则
+AGENTS.issues.template.md        ← Issue 驱动工作流（叠加到 AGENTS.md）
+```
 
-常用操作
-  - 生成/更新 MCP 工具目录：使用 mcp-tools-catalog
-  - 生成新的 AGENTS.md：使用 agents-bootstrap
-  - 与 Claude 协作：使用 collaborating-with-claude（通过 bridge 脚本；不要直接运行 `claude`）
-  - 与 Gemini 协作：使用 collaborating-with-gemini（通过 bridge 脚本；不要直接运行 `gemini`）
-  - 校验技能结构：参考 docs/SKILLs/agent-skills-standard.md
+## 工作原理
 
-备注
-  - 本仓库以文档与流程为主，大多数变更为文本修改。
-  - 以官方文档作为主要信息来源。
-  - 如需直接运行 bridge 脚本，优先使用 `python3`（部分系统不提供 `python` 命令）。
-  - SKILL 编写最佳范式：在对话中引用 `docs/SKILLs/agent-skills-standard.md`（例如 "@docs/SKILLs/agent-skills-standard.md"）并迭代完善。
+每个技能遵循**渐进式披露**原则：
 
-致谢
-  - 初始灵感来源：
-    - https://github.com/anthropics/skills
-    - https://github.com/GuDaStudio/skills
+- **第一层（元数据）** — YAML frontmatter 中的 `name` + `description`。始终加载，用于技能发现。
+- **第二层（指令）** — SKILL.md 正文。技能被调用时加载。包含工作流、安全规则、快速入门。
+- **第三层（资源）** — `scripts/`、`references/`、`assets/`。按需加载。包含详细文档、模板、辅助脚本。
+
+## 备注
+
+- 本仓库以工作流为主 — 大多数变更为文本修改，而非代码。
+- Bridge 脚本封装 CLI 工具，返回结构化 JSON 并支持会话连续性。
+- 技能可在 Codex 和 Claude Code 之间移植，仅需少量适配。
+- 如需直接运行 bridge 脚本，优先使用 `python3`。
+
+## 致谢
+
+灵感来源：
+- [anthropics/skills](https://github.com/anthropics/skills)
+- [GuDaStudio/skills](https://github.com/GuDaStudio/skills)

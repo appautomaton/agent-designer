@@ -1,50 +1,75 @@
 Language: English | [中文](README.zh-CN.md)
 
-AGENT-DESIGNER (Codex Skills Workspace)
-======================================
+# Agent Designer
 
-Purpose
-  Design and maintain Codex/Claude-style SKILLs, plus supporting docs and MCP tool catalog.
+A portable skills workspace for AI coding agents — Codex, Claude Code, and Gemini.
+
+Design structured, reusable skills that give your agents clear workflows, safe defaults, and multi-turn collaboration capabilities. Clone this repo as a starting point for any project where you want agents to work methodically rather than freestyle.
+
+## What's inside
+
+**Collaboration skills** — let your agents delegate to each other via bridge scripts with session continuity:
+
+| Skill | Purpose |
+|---|---|
+| `collaborating-with-claude` | Delegate to Claude Code CLI (review, diff, consultation) |
+| `collaborating-with-gemini` | Delegate to Gemini CLI (review, web search, image analysis) |
+| `collaborating-with-codex` | Delegate to Codex CLI (implementation, diagnosis, review) |
+
+**Issue-driven development** — structure work into plans and trackable Issue CSVs:
+
+| Skill | Purpose |
+|---|---|
+| `issue-driven-dev` | Plan → Issue CSV → autonomous execution with status tracking |
+
+**Standards & testing** — how to author skills and verify work:
+
+| Resource | Purpose |
+|---|---|
+| `docs/SKILLs/agent-skills-standard.md` | How to structure portable `SKILL.md` files |
+| `skills/testing/` | Testing principles, patterns, and policies |
+
+## Getting started
 
 > [!TIP]
-> **How to start a new project**
-> 0) (Optional) Use this repo as a template: clone it, remove the git history (`rm -rf .git`), then re-init (`git init`).
-> 1) Generate docs/mcp-tools.md (mcp-tools-catalog).
->    - Why: Codex may not proactively use MCP; having the full tool list makes planning easier.
->    - Example prompt: "Generate docs/mcp-tools.md from enabled MCP servers."
-> 2) Create AGENTS.md (agents-bootstrap).
->    - Why: this imports an issues-driven dev workflow into AGENTS.md based on your project requirements.
->    - Tip: you can also talk with Codex first to clarify scope, then ask it to "bootstrap my AGENTS.md".
-> 3) Create plan/Issue CSV (plan).
->    - Note: this repo ships a custom plan skill at `.codex/skills/plan/` (overrides the system plan skill).
->    - Templates: `.codex/skills/plan/assets/_template.md` and `.codex/skills/plan/assets/_template.csv`.
->    - Example prompt: "Create a plan and Issue CSV for <goal>."
+> 1) (Optional) Use this repo as a template: clone it, remove git history (`rm -rf .git`), re-init (`git init`).
+> 2) Write your `AGENTS.md` — project role, constraints, stack, safety rules.
+>    - To add issue-driven workflow: ask your agent to "apply `AGENTS.issues.template.md` on top of `AGENTS.md`".
+> 3) Start working — ask your agent to create a plan, generate an Issue CSV, or collaborate with another agent.
+>    - Example: "Create a plan and Issue CSV for <goal>."
 
-> [!CAUTION]
-> The `collaborating-with-gemini` workflow stages screenshots/images in `.codex_uploads/`. Don't add `.codex_uploads/` to `.gitignore`, or Gemini may refuse to read ignored paths.
+## Project structure
 
-Key files
-  - AGENTS.md (project rules)
-  - .codex/skills/ (all skills)
-  - docs/SKILLs/agent-skills-standard.md (skill design standard)
-  - docs/mcp-tools.md (MCP tools catalog)
-  - docs/testing-policy.md (testing defaults)
-  - issues/README.md (Issue CSV format)
+```
+skills/                          ← skill source (the real content)
+  collaborating-with-claude/     ← bridge script + SKILL.md + references
+  collaborating-with-gemini/     ← bridge script + SKILL.md + references
+  collaborating-with-codex/      ← bridge script + SKILL.md + references + prompt recipes
+  issue-driven-dev/              ← plan/CSV workflow + templates + scripts
+  testing/                       ← testing principles and patterns
+.codex/skills/                   ← symlinks (Codex wiring)
+docs/SKILLs/                     ← skill authoring standard
+AGENTS.md                        ← project-specific rules
+AGENTS.issues.template.md        ← issue-driven workflow (apply on top of AGENTS.md)
+```
 
-Common actions
-  - Regenerate MCP tools catalog: use the mcp-tools-catalog skill
-  - Draft a new AGENTS.md: use the agents-bootstrap skill
-  - Collaborate with Claude: use the collaborating-with-claude skill (bridge script; don't run `claude` directly)
-  - Collaborate with Gemini: use the collaborating-with-gemini skill (bridge script; don't run `gemini` directly)
-  - Validate skill structure: follow docs/SKILLs/agent-skills-standard.md
+## How it works
 
-Notes
-  - This repo is documentation- and workflow-first. Most changes are text.
-  - Use official docs as the primary source of truth.
-  - If invoking bridge scripts directly, prefer `python3` (some systems don't have `python`).
-  - Skill authoring best-practice: reference `docs/SKILLs/agent-skills-standard.md` in chat (e.g., "@docs/SKILLs/agent-skills-standard.md") and iterate.
+Each skill follows **progressive disclosure**:
 
-Acknowledgements
-  - Initial inspiration:
-    - https://github.com/anthropics/skills
-    - https://github.com/GuDaStudio/skills
+- **Level 1 (metadata)** — `name` + `description` in YAML frontmatter. Always loaded. Used for discovery.
+- **Level 2 (instructions)** — the SKILL.md body. Loaded when the skill is invoked. Contains workflow, safety, quick start.
+- **Level 3 (resources)** — `scripts/`, `references/`, `assets/`. Loaded on demand. Contains deep docs, templates, helper scripts.
+
+## Notes
+
+- This repo is workflow-first — most changes are text, not code.
+- Bridge scripts wrap CLI tools and return structured JSON with session continuity.
+- Skills are portable across Codex and Claude Code with minimal adaptation.
+- If invoking bridge scripts directly, prefer `python3`.
+
+## Acknowledgements
+
+Inspired by:
+- [anthropics/skills](https://github.com/anthropics/skills)
+- [GuDaStudio/skills](https://github.com/GuDaStudio/skills)

@@ -121,6 +121,8 @@ def parse_json_output(lines: List[str]) -> Tuple[Optional[str], str, List[Dict[s
         session_id = obj.get("session_id")
 
     agent_messages = extract_text(obj)
+    if not agent_messages and isinstance(obj, dict) and isinstance(obj.get("result"), str):
+        agent_messages = obj["result"]
     all_messages = [obj] if isinstance(obj, dict) else []
     return session_id, agent_messages, all_messages, err_message
 
