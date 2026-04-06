@@ -20,13 +20,7 @@ Language: 中文 | [English](README.md)
 
 | 技能 | 用途 |
 |---|---|
-| `issue-driven-dev` | 计划 → Issue CSV → 自主执行并跟踪状态 |
-
-**测试** — 如何验证工作：
-
-| 资源 | 用途 |
-|---|---|
-| `skills/testing/` | 测试原则、模式和策略 |
+| `issue-driven-workflow` | 计划 → Issue CSV → 自主执行并跟踪状态 |
 
 ## 快速开始
 
@@ -44,8 +38,7 @@ skills/                          ← 技能源码（核心内容）
   collaborating-with-claude/     ← bridge 脚本 + SKILL.md + 参考文档
   collaborating-with-gemini/     ← bridge 脚本 + SKILL.md + 参考文档
   collaborating-with-codex/      ← bridge 脚本 + SKILL.md + 参考文档 + 提示词模板
-  issue-driven-dev/              ← 计划/CSV 工作流 + 模板 + 脚本
-  testing/                       ← 测试原则和模式
+  issue-driven-workflow/              ← 计划/CSV 工作流 + 模板 + 脚本
 .codex/skills/                   ← 符号链接（Codex 接入层）
 AGENTS.md                        ← 项目专属规则
 AGENTS.issues.template.md        ← Issue 驱动工作流（叠加到 AGENTS.md）

@@ -5,7 +5,7 @@
 E2E loop = plan → issues → implement → test → review → commit → regression.
 
 ## Plan & issue generation
-- Use the `issue-driven-dev` skill for plan and Issue CSV generation.
+- Use the `issue-driven-workflow` skill for plan and Issue CSV generation.
 - Plans must include: steps, tests, risks, and rollback/safety notes.
 
 ## Issue CSV guidelines
@@ -13,7 +13,7 @@ E2E loop = plan → issues → implement → test → review → commit → regr
 - Status values: TODO | DOING | DONE (never percentages).
 - If a task lacks a test method, add one or flag it as a risk.
 - One plan maps to one Issue CSV unless explicitly split.
-- See the `issue-driven-dev` skill references for column definitions and testing policy.
+- See the `issue-driven-workflow` skill references for column definitions and testing policy.
 
 ## Tool usage
 - When a matching MCP tool exists, use it; do not guess or simulate results.

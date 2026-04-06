@@ -20,13 +20,7 @@ Design structured, reusable skills that give your agents clear workflows, safe d
 
 | Skill | Purpose |
 |---|---|
-| `issue-driven-dev` | Plan → Issue CSV → autonomous execution with status tracking |
-
-**Testing** — how to verify work:
-
-| Resource | Purpose |
-|---|---|
-| `skills/testing/` | Testing principles, patterns, and policies |
+| `issue-driven-workflow` | Plan → Issue CSV → autonomous execution with status tracking |
 
 ## Getting started
 
@@ -44,8 +38,7 @@ skills/                          ← skill source (the real content)
   collaborating-with-claude/     ← bridge script + SKILL.md + references
   collaborating-with-gemini/     ← bridge script + SKILL.md + references
   collaborating-with-codex/      ← bridge script + SKILL.md + references + prompt recipes
-  issue-driven-dev/              ← plan/CSV workflow + templates + scripts
-  testing/                       ← testing principles and patterns
+  issue-driven-workflow/              ← plan/CSV workflow + templates + scripts
 .codex/skills/                   ← symlinks (Codex wiring)
 AGENTS.md                        ← project-specific rules
 AGENTS.issues.template.md        ← issue-driven workflow (apply on top of AGENTS.md)
