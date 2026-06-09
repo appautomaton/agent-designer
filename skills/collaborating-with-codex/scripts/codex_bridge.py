@@ -289,7 +289,7 @@ def summarize_event(
             ):
                 state["files_changed"] += 1
                 status(f"File activity: {item_type}")
-            elif "plan" in item_type_lower:
+            elif "plan" in item_type_lower or item_type_lower == "todo_list":
                 state["plan_updates"] += 1
                 status("Plan updated")
 

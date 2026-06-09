@@ -130,7 +130,7 @@ The bridge relies on these event shapes:
 {"type":"turn.completed","usage":{"input_tokens":123,"output_tokens":45}}
 ```
 
-Item types include agent messages, reasoning, command executions, file changes, MCP tool calls, web searches, and plan updates. The bridge returns `activity_counts` plus compact counters for commands, web searches, MCP activity, file activity, and plan updates when those events appear.
+Item types include agent messages, reasoning, command executions, file changes, MCP tool calls, web searches, and todo/plan updates. The bridge returns `activity_counts` plus compact counters for commands, web searches, MCP activity, file activity, and todo/plan updates when those events appear.
 
 If Codex changes event names, update `scripts/codex_bridge.py` and this reference together.
 
