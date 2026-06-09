@@ -1,40 +1,39 @@
 # Shell quoting for `--PROMPT`
 
-When invoking `gemini_bridge.py`, be careful: your *shell* parses the command line before Python runs.
+When invoking `codex_bridge.py`, remember that your shell parses the command line before Python receives the prompt.
 
 ## The pitfall: Markdown backticks
 
-Markdown inline code uses backticks (`` `like/this` ``). In bash/zsh, backticks mean **command substitution**, even inside double quotes, so this breaks:
+Markdown inline code uses backticks (`` `like/this` ``). In bash/zsh, backticks mean command substitution, even inside double quotes, so this breaks before Codex runs:
 
 ```bash
-python3 .codex/skills/collaborating-with-gemini/scripts/gemini_bridge.py \
+python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
   --cd "." \
-  --PROMPT "Analyze `tmp/eth_dev_news_raw.json` and summarize."
+  --PROMPT "Analyze `tmp/raw.json` and summarize."
 ```
 
-Typical symptoms (from the shell, before Gemini runs):
+Typical symptoms:
 
-- `zsh: permission denied: tmp/eth_dev_news_raw.json`
+- `zsh: permission denied: tmp/raw.json`
 - `zsh: command not found: as_of`
 
-## Recommended: heredoc (no expansion)
+## Recommended: heredoc
 
-Build the prompt via a *single-quoted heredoc delimiter* (`<<'EOF'`) so backticks (and `$VARS`, `$(...)`, etc.) are not expanded by the shell:
+Build the prompt with a single-quoted heredoc delimiter (`<<'EOF'`) so backticks, `$VARS`, and `$(...)` are not expanded by the shell:
 
 ```bash
 PROMPT="$(cat <<'EOF'
-Analyze `tmp/eth_dev_news_raw.json` and summarize.
+Analyze `tmp/raw.json` and summarize.
 Set `as_of` to `YYYY-MM-DD`.
 EOF
 )"
 
-python3 .codex/skills/collaborating-with-gemini/scripts/gemini_bridge.py \
+python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
   --cd "." \
   --PROMPT "$PROMPT"
 ```
 
 ## Alternatives
 
-- Escape backticks manually: use `\`` (easy to miss in long prompts).
-- Avoid backticks entirely: write `Analyze the file tmp/eth_dev_news_raw.json` instead.
-
+- Escape backticks manually as `` \` ``.
+- Avoid Markdown backticks in CLI prompts.

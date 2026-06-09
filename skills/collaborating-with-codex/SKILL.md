@@ -1,40 +1,41 @@
 ---
 name: collaborating-with-codex
-description: Delegate tasks to Codex CLI for prototyping, debugging, code review, and implementation. Supports multi-turn sessions via SESSION_ID.
+description: Delegate tasks to Codex CLI for prototyping, debugging, code review, implementation handoff, cross-model second opinions, and multi-turn Codex sessions via SESSION_ID.
 metadata:
   short-description: Delegate to Codex CLI
 ---
 
 # Collaborating with Codex
 
-Use Codex CLI as a collaborator while your primary agent remains the implementer.
+Use Codex CLI as an independent collaborator while the primary agent remains responsible for verification, synthesis, and final user-facing decisions.
 
-The bridge script (`scripts/codex_bridge.py`) wraps `codex exec` (headless mode), returns structured JSON, and manages session continuity via `SESSION_ID`.
+The bridge script (`scripts/codex_bridge.py`) wraps `codex exec` in JSON mode, streams progress to stderr, returns structured JSON, and manages multi-turn continuity via `SESSION_ID`.
 
-## Safety
+In Claude Code, run bridge calls in the background by default for non-trivial tasks:
 
-Codex runs in a sandbox by default. The bridge defaults to `read-only`:
+```text
+Bash tool call:
+  command: python3 <skill_dir>/scripts/codex_bridge.py --cd "/project" --PROMPT "Analyze auth flow in src/auth/"
+  run_in_background: true
+```
 
-- `--sandbox read-only` — **(default)** no file writes, no destructive commands. Recommended for review/consultation.
-- `--sandbox workspace-write` — can write files in the workspace only.
-- `--sandbox danger-full-access` — unrestricted. Use only in externally sandboxed environments.
-- `--full-auto` — convenience alias for sandboxed auto-execution (`workspace-write` + auto-approve).
+`run_in_background` is a host tool parameter, not a shell argument. Use the host's task-output view to monitor timestamped stderr progress, commands Codex ran, response previews, stalls, and completion.
 
-Do not use `--full-auto` or `danger-full-access` unless you understand the implications.
+## Safety model
 
-## When to use
-- Algorithm implementation, bug analysis, or code generation.
-- Code review or adversarial review.
-- Second opinion on architecture, edge cases, or test gaps.
-- Research or diagnosis with tool use.
+Default to read-only delegation:
 
-## When not to use
-- Trivial tasks your primary agent can handle directly.
-- Anything involving secrets, private keys, or prod data.
+- `--sandbox read-only` - default; use for review, diagnosis, research, and second opinions.
+- `--sandbox workspace-write` - use only after write access is appropriate; prefer an isolated worktree under `/tmp`.
+- `--sandbox danger-full-access` - use only in an externally sandboxed environment.
+- `--bypass-sandbox` - forwards Codex's dangerous bypass flag; requires explicit user consent.
+- `--full-auto` - deprecated bridge compatibility alias only; maps to `workspace-write` and is not forwarded to Codex CLI.
+
+Do not hand secrets, private keys, production data, or irreversible operations to Codex.
 
 ## Quick start
 
-⚠️ Backticks in prompts trigger shell command substitution — use a heredoc. See `references/shell-quoting.md`.
+Backticks in prompts trigger shell command substitution. Use a single-quoted heredoc; see `references/shell-quoting.md`.
 
 ```bash
 PROMPT="$(cat <<'EOF'
@@ -42,77 +43,150 @@ Review src/auth.py around login() and propose fixes.
 OUTPUT: Unified Diff Patch ONLY.
 EOF
 )"
+
 python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
-  --cd "." --PROMPT "$PROMPT"
+  --cd "." \
+  --PROMPT "$PROMPT"
 ```
 
-**Returns:** `{ "success": true, "SESSION_ID": "...", "agent_messages": "..." }`
+Typical response:
+
+```json
+{
+  "success": true,
+  "SESSION_ID": "019...",
+  "agent_messages": "Findings...",
+  "commands_ran": 2
+}
+```
+
+For long-running calls, run the command in the host's background-command mode when available, then monitor stderr progress and the final JSON result.
 
 ## Multi-turn sessions
 
-Capture `SESSION_ID` from the first call and pass it back:
+Capture `SESSION_ID` from the first response and pass it back:
 
 ```bash
-# Turn 1
 python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
-  --cd "." --PROMPT "Analyze the bug in foo()."
+  --cd "." \
+  --PROMPT "Analyze the bug in foo()."
 
-# Turn 2 — resume by ID
 python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
-  --cd "." --SESSION_ID "<id>" --PROMPT "Propose a fix."
+  --cd "." \
+  --SESSION_ID "<id>" \
+  --PROMPT "Now propose the smallest safe fix."
 
-# Or resume the most recent session
 python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
-  --cd "." --last --PROMPT "What about edge cases?"
+  --cd "." \
+  --last \
+  --PROMPT "Check edge cases before finalizing."
 ```
 
 ## Bridge flags
 
 | Flag | Purpose | Default |
 |---|---|---|
-| `--PROMPT` | Prompt text (required) | — |
-| `--cd` | Workspace root (required) | — |
-| `--SESSION_ID` | Resume a previous session by thread ID | new session |
+| `--PROMPT` | Prompt text | required |
+| `--cd` | Workspace root passed to Codex | required |
+| `--SESSION_ID` | Resume a previous session | new session |
 | `--last` | Resume the most recent session | off |
 | `--model` | Override Codex model | CLI default |
-| `--sandbox` | `read-only` · `workspace-write` · `danger-full-access` | `read-only` |
-| `--full-auto` | Sandboxed auto-execution | off |
-| `--image` | Attach image files (repeatable) | none |
-| `--add-dir` | Additional writable directories (repeatable) | none |
-| `--skip-git-repo-check` | Allow running outside a Git repo | off |
-| `--ephemeral` | Don't persist session to disk | off |
-| `--return-all-messages` | Include all JSONL events in output | off |
+| `--sandbox` | `read-only`, `workspace-write`, or `danger-full-access` | `read-only` |
+| `--profile` | Load a Codex config profile | off |
+| `-c`, `--config` | Override Codex config values | none |
+| `--enable`, `--disable` | Toggle Codex feature flags | none |
+| `--image` | Attach image files; repeatable | none |
+| `--add-dir` | Additional writable directories | none |
+| `--skip-git-repo-check` | Allow non-git directories | on |
+| `--require-git-repo` | Disable the default non-git allowance | off |
+| `--ephemeral` | Do not persist session files | off |
+| `--bypass-sandbox` | Forward Codex dangerous bypass flag | off |
+| `--bypass-hook-trust` | Forward Codex dangerous hook-trust bypass flag | off |
+| `--search` | Compatibility flag; returns an error because current `codex exec` lacks search | off |
+| `--oss`, `--local-provider` | Use OSS/local provider mode | off |
+| `--ignore-user-config`, `--ignore-rules`, `--strict-config` | Config loading controls | off |
+| `--output-schema` | JSON Schema file for final response | none |
+| `-o`, `--output-last-message` | Write final Codex message to a file | none |
+| `--color` | Codex output color mode | CLI default |
+| `--return-all-messages` | Include all JSONL events | off |
+| `--full-auto` | Deprecated bridge alias for `workspace-write` | off |
 
-Default timeout: set `timeout_ms` to **600000** (10 min) when invoking via an external command runner.
+## Direct code review
+
+Use the bridge for custom analysis and handoff. For Codex's built-in review command, call the current CLI directly from the repository:
+
+```bash
+codex exec review --uncommitted -o /tmp/codex-review.md
+codex exec review --base origin/main -o /tmp/codex-review.md
+codex exec review --commit <sha> -o /tmp/codex-review.md
+```
+
+Add a prompt argument or stdin when the review needs a focus area. Current `codex exec review` does not use `--full-auto`.
+
+## Code changes
+
+For read-only patch proposals, ask Codex for a unified diff and apply it only after primary-agent review. For direct writes, use a worktree under `/tmp`:
+
+```bash
+git worktree add -b codex/fix /tmp/wt-fix HEAD
+python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
+  --cd "/tmp/wt-fix" \
+  --sandbox workspace-write \
+  --PROMPT "Implement the focused fix and run the narrow verification."
+```
+
+Use `codex apply <TASK_ID>` only after reviewing a Codex-produced diff. Use `codex fork [SESSION_ID]` or `codex fork --last` for interactive session branching when you need to explore an alternate path without losing the original thread.
+
+## Tune performance
+
+```bash
+python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
+  --cd "/project" \
+  -c 'model_reasoning_effort="medium"' \
+  --PROMPT "Analyze this small bug."
+
+python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
+  --cd "/project" \
+  --enable multi_agent \
+  --PROMPT "Analyze these independent modules."
+```
+
+Use `--output-schema schema.json` or `-o /tmp/result.md` when the result must be machine-checkable or saved outside the conversation.
 
 ## Prompting patterns
 
-Use `assets/prompt-template.md` for quick plain-text starters. For complex tasks, use composable XML prompt blocks — see `references/prompt-blocks.md`.
+Use `assets/prompt-template.md` for quick starters. For complex tasks, use composable XML prompt blocks in `references/prompt-blocks.md`.
 
 Key principles:
 
-- **Point, don't paste** — give file paths and line numbers, not code blocks.
-- **One objective per prompt** — multiple competing goals produce noisy output.
-- **State what done looks like** — Codex works best with explicit acceptance criteria.
-- **Use prompt blocks** — wrap objectives in `<task>`, add `<verification_loop>` for correctness, `<grounding_rules>` for reviews.
-- **Enforce output format** — append `OUTPUT: Unified Diff Patch ONLY.` for code changes when using `read-only` sandbox.
+- Point, do not paste: give file paths and line numbers when possible.
+- Use one objective per Codex run.
+- State done criteria and output shape.
+- Ask for unified diffs in read-only mode when you want patches without direct edits.
+- Synthesize and verify Codex output before changing final code or reporting to the user.
 
 ## Verification
 
 - Smoke test: `python3 skills/collaborating-with-codex/scripts/codex_bridge.py --help`
-- Session test: run one prompt, confirm JSON contains `success: true` and a `SESSION_ID`.
+- Syntax test: `python3 -m py_compile skills/collaborating-with-codex/scripts/codex_bridge.py`
+- Command-contract test: use a fake `codex` executable in `/tmp` to inspect forwarded argv.
 
 ## Collaboration State Capsule
 
-Keep this block updated while collaborating:
+Keep this block updated during multi-turn handoffs:
 
-```
+```text
 [Codex Capsule] Goal: | SID: | Sandbox: | Files: | Last: | Next:
 ```
 
 ## References
-- [Prompt template](assets/prompt-template.md) — quick plain-text starters
-- [Prompt blocks](references/prompt-blocks.md) — composable XML blocks for structured prompts
-- [Prompt recipes](references/prompt-recipes.md) — end-to-end templates (diagnosis, fix, review, research)
-- [Prompt anti-patterns](references/prompt-antipatterns.md) — common mistakes to avoid
-- [Shell quoting](references/shell-quoting.md) — heredoc quoting for backticks
+
+- [Prompt template](assets/prompt-template.md) - quick plain-text starters
+- [Prompt blocks](references/prompt-blocks.md) - composable XML blocks
+- [Prompt patterns](references/patterns.md) - delegation scenarios and prompt examples
+- [Prompt recipes](references/prompt-recipes.md) - diagnosis, fix, review, and research templates
+- [Prompt anti-patterns](references/prompt-antipatterns.md) - common mistakes
+- [Shell quoting](references/shell-quoting.md) - safe heredoc prompts
+- [CLI reference](references/cli-reference.md) - Codex CLI flags verified for this skill
+- [Handoff patterns](references/handoff-patterns.md) - read-only, worktree, and synthesis workflows
+- [Parallel guide](references/parallel.md) - parallel runs, worktree cleanup, and rate-limit guidance
