@@ -1,133 +1,349 @@
 #!/usr/bin/env python3
 """
-Claude Code Bridge Script for Codex Skills.
+Claude Code Bridge Script.
 
-Wraps the Claude Code CLI to provide a JSON-based interface and multi-turn sessions via SESSION_ID.
+Wraps the Claude Code CLI (`claude --print`) to provide a JSON interface,
+live stderr progress, multi-turn sessions via SESSION_ID, and structured
+result telemetry (termination reason, cost, tokens, turns).
+
+Verified against `claude` (Claude Code) CLI v2.1.169.
 """
+
+from __future__ import annotations
 
 import argparse
 import json
+import os
+import queue
 import shutil
 import subprocess
+import sys
+import threading
+import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Generator, List, Optional
 
 
-def read_output_lines(cmd: List[str], cwd: Optional[str] = None) -> Tuple[List[str], List[str], int]:
-    """Execute a command and capture stdout/stderr as lists of lines."""
-    popen_cmd = cmd.copy()
-    claude_path = shutil.which("claude") or cmd[0]
-    popen_cmd[0] = claude_path
+def emit_json(result: Dict[str, Any], exit_code: int = 0) -> None:
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    raise SystemExit(exit_code)
 
-    process = subprocess.Popen(
-        popen_cmd,
+
+def find_executable(name: str) -> str:
+    """Locate an executable while handling Windows npm shims."""
+    found = shutil.which(name)
+    if found:
+        if os.name == "nt" and not Path(found).suffix:
+            for ext in (".cmd", ".bat", ".exe"):
+                alt = Path(found).parent / f"{name}{ext}"
+                if alt.is_file():
+                    return str(alt)
+        return found
+    if os.name == "nt":
+        for env_var in ("APPDATA", "LOCALAPPDATA"):
+            base = os.environ.get(env_var, "")
+            if base:
+                for ext in (".cmd", ".bat", ".exe"):
+                    candidate = Path(base) / "npm" / f"{name}{ext}"
+                    if candidate.is_file():
+                        return str(candidate)
+    return name
+
+
+def preflight_check(cd: Path) -> Optional[str]:
+    if shutil.which("claude") is None:
+        return "Claude Code CLI not found in PATH. Install it and ensure `claude` is available."
+    if not cd.exists():
+        return f"Workspace root `{cd.absolute().as_posix()}` does not exist."
+    if not cd.is_dir():
+        return f"Workspace root `{cd.absolute().as_posix()}` is not a directory."
+    return None
+
+
+def extract_assistant_text(message: Any) -> str:
+    """Pull concatenated text blocks from an assistant message object."""
+    if not isinstance(message, dict):
+        return ""
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+    parts: List[str] = []
+    if isinstance(content, list):
+        for block in content:
+            if (
+                isinstance(block, dict)
+                and block.get("type") == "text"
+                and isinstance(block.get("text"), str)
+            ):
+                parts.append(block["text"])
+    return "".join(parts)
+
+
+def stream_command(
+    cmd: List[str],
+    cwd: Optional[Path] = None,
+    timeout_seconds: float = 0,
+) -> Generator[str, None, int]:
+    """Execute a command and yield stdout lines while forwarding stderr progress."""
+    resolved = cmd.copy()
+    resolved[0] = find_executable(cmd[0])
+
+    if os.name == "nt" and Path(resolved[0]).suffix.lower() in {".cmd", ".bat"}:
+        comspec = os.environ.get("COMSPEC", "cmd.exe")
+        resolved = [comspec, "/d", "/s", "/c", " ".join(f'"{arg}"' for arg in resolved)]
+
+    proc = subprocess.Popen(
+        resolved,
         shell=False,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         universal_newlines=True,
         encoding="utf-8",
-        cwd=cwd,
+        errors="replace",
+        cwd=str(cwd) if cwd is not None else None,
     )
 
-    stdout, stderr = process.communicate()
-    stdout_lines = stdout.splitlines() if stdout else []
-    stderr_lines = stderr.splitlines() if stderr else []
-    return stdout_lines, stderr_lines, process.returncode
+    out_q: "queue.Queue[Optional[str]]" = queue.Queue()
+    started_at = time.time()
 
+    def read_stdout() -> None:
+        assert proc.stdout is not None
+        for line in iter(proc.stdout.readline, ""):
+            stripped = line.strip()
+            if stripped:
+                out_q.put(stripped)
+        proc.stdout.close()
+        out_q.put(None)
 
-def extract_text(value: Any) -> str:
-    """Recursively extract text from a Claude Code JSON payload."""
-    if isinstance(value, str):
-        return value
-    if isinstance(value, list):
-        return "".join(extract_text(item) for item in value)
-    if isinstance(value, dict):
-        if isinstance(value.get("text"), str):
-            return value["text"]
-        if "content" in value:
-            return extract_text(value["content"])
-        if "delta" in value:
-            return extract_text(value["delta"])
-        if "message" in value:
-            return extract_text(value["message"])
-    return ""
+    def read_stderr() -> None:
+        assert proc.stderr is not None
+        for line in iter(proc.stderr.readline, ""):
+            text = line.rstrip()
+            if text:
+                print(f"[claude stderr] {text}", file=sys.stderr, flush=True)
+        proc.stderr.close()
 
+    t_out = threading.Thread(target=read_stdout, daemon=True)
+    t_err = threading.Thread(target=read_stderr, daemon=True)
+    t_out.start()
+    t_err.start()
 
-def update_role(obj: Dict[str, Any], current_role: Optional[str]) -> Optional[str]:
-    """Track the current message role for streaming output."""
-    role = obj.get("role")
-    if isinstance(role, str):
-        return role
-    message = obj.get("message")
-    if isinstance(message, dict):
-        role = message.get("role")
-        if isinstance(role, str):
-            return role
-    return current_role
-
-
-def parse_stream_json(lines: List[str]) -> Tuple[Optional[str], str, List[Dict[str, Any]], str]:
-    """Parse stream-json output into session_id, agent_messages, all_messages, error."""
-    all_messages: List[Dict[str, Any]] = []
-    agent_messages = ""
-    err_message = ""
-    session_id: Optional[str] = None
-    current_role: Optional[str] = None
-    saw_delta = False
-
-    for line in lines:
-        stripped = line.strip()
-        if not stripped:
-            continue
+    while True:
+        if timeout_seconds and time.time() - started_at > timeout_seconds:
+            print(
+                f"[claude] timeout after {timeout_seconds:g}s; terminating Claude Code",
+                file=sys.stderr,
+                flush=True,
+            )
+            proc.kill()
+            return proc.wait()
         try:
-            obj = json.loads(stripped)
-            if isinstance(obj, dict):
-                all_messages.append(obj)
-                if obj.get("session_id"):
-                    session_id = obj.get("session_id")
+            line = out_q.get(timeout=0.5)
+            if line is None:
+                break
+            yield line
+        except queue.Empty:
+            if proc.poll() is not None and not t_out.is_alive():
+                break
 
-                current_role = update_role(obj, current_role)
-                is_delta = "delta" in obj or str(obj.get("type", "")).endswith("_delta")
-                if is_delta:
-                    saw_delta = True
-
-                if current_role == "assistant":
-                    if is_delta or not saw_delta:
-                        agent_messages += extract_text(obj)
-        except json.JSONDecodeError:
-            err_message += "\n\n[json decode error] " + stripped
-            continue
-        except Exception as error:
-            err_message += "\n\n[unexpected error] " + f"Unexpected error: {error}. Line: {stripped!r}"
-            continue
-
-    return session_id, agent_messages, all_messages, err_message
-
-
-def parse_json_output(lines: List[str]) -> Tuple[Optional[str], str, List[Dict[str, Any]], str]:
-    """Parse json (non-stream) output into session_id, agent_messages, all_messages, error."""
-    err_message = ""
-    raw = "\n".join(lines).strip()
-    if not raw:
-        return None, "", [], "No output received from Claude Code."
+    t_out.join(timeout=5)
+    t_err.join(timeout=2)
     try:
-        obj = json.loads(raw)
+        return proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        return proc.wait()
+
+
+def apply_result_event(event: Dict[str, Any], state: Dict[str, Any]) -> None:
+    """Copy fields from a `type:result` event into bridge state."""
+    state["subtype"] = event.get("subtype")
+    state["is_error"] = bool(event.get("is_error"))
+    if isinstance(event.get("result"), str):
+        state["result_text"] = event["result"]
+    state["total_cost_usd"] = event.get("total_cost_usd")
+    state["usage"] = event.get("usage") or {}
+    state["num_turns"] = event.get("num_turns")
+    state["permission_denials"] = event.get("permission_denials") or []
+    state["terminal_reason"] = event.get("terminal_reason")
+    state["stop_reason"] = event.get("stop_reason")
+    state["duration_ms"] = event.get("duration_ms")
+    model_usage = event.get("modelUsage")
+    if isinstance(model_usage, dict) and model_usage and not state.get("model"):
+        state["model"] = next(iter(model_usage))
+    if event.get("structured_output") is not None:
+        state["structured_output"] = event.get("structured_output")
+
+
+def summarize_event(
+    event: Dict[str, Any],
+    all_messages: List[Dict[str, Any]],
+    state: Dict[str, Any],
+    start_time: float,
+) -> None:
+    """Update state from a stream-json event and emit a stderr progress line."""
+    all_messages.append(event)
+
+    def status(message: str) -> None:
+        elapsed = time.time() - start_time
+        print(f"[claude {elapsed:5.1f}s] {message}", file=sys.stderr, flush=True)
+
+    if event.get("session_id") and not state["session_id"]:
+        state["session_id"] = event["session_id"]
+
+    etype = event.get("type", "")
+
+    if etype == "system":
+        subtype = event.get("subtype", "")
+        if subtype == "init":
+            state["session_id"] = event.get("session_id") or state["session_id"]
+            state["model"] = event.get("model")
+            status(f"Session {state['session_id']} · model {event.get('model', '?')}")
+        elif subtype == "api_retry":
+            status(f"API retry {event.get('attempt')}/{event.get('max_retries')} ({event.get('error', '?')})")
+        elif subtype == "compact_boundary":
+            status("Context compacted")
+        # hook_started / hook_response and other system events are intentionally quiet.
+
+    elif etype == "assistant":
+        message = event.get("message", {})
+        text = extract_assistant_text(message)
+        if text:
+            state["agent_messages"] += text
+            preview = text[:80].replace("\n", " ")
+            status(f"Response: {preview}{'…' if len(text) > 80 else ''}")
+        content = message.get("content")
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "tool_use":
+                    state["tools_used"] += 1
+                    status(f"Tool: {block.get('name', '?')}")
+
+    elif etype == "rate_limit_event":
+        info = event.get("rate_limit_info", {})
+        if isinstance(info, dict) and info.get("status") and info.get("status") != "allowed":
+            state["rate_limited"] = True
+            status(f"Rate limit: {info.get('status')} ({info.get('rateLimitType', '?')})")
+
+    elif etype == "result":
+        apply_result_event(event, state)
+        cost = state["total_cost_usd"]
+        cost_s = f"${cost:.4f}" if isinstance(cost, (int, float)) else "?"
+        usage = state["usage"] or {}
+        status(
+            f"Done · {state['subtype']} · {cost_s} · "
+            f"{usage.get('input_tokens', 0) or 0} in / {usage.get('output_tokens', 0) or 0} out · "
+            f"{state['num_turns'] or 0} turns"
+        )
+
+    if "error" in etype and etype != "result":
+        message = ""
+        error_obj = event.get("error")
+        if isinstance(error_obj, dict):
+            message = str(error_obj.get("message", ""))
+        message = message or str(event.get("message", ""))
+        if message:
+            state["errors"].append(message)
+
+
+def parse_json_blob(raw_lines: List[str], all_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> None:
+    """Parse non-streaming `--output-format json` output (a single result object)."""
+    raw = "\n".join(raw_lines).strip()
+    if not raw:
+        state["errors"].append("No output received from Claude Code.")
+        return
+    try:
+        parsed = json.loads(raw)
     except json.JSONDecodeError as error:
-        return None, raw, [], f"Failed to parse JSON output: {error}"
+        state["errors"].append(f"Failed to parse JSON output: {error}")
+        return
 
-    session_id = None
-    if isinstance(obj, dict) and obj.get("session_id"):
-        session_id = obj.get("session_id")
+    objects = parsed if isinstance(parsed, list) else [parsed]
+    for obj in objects:
+        if not isinstance(obj, dict):
+            continue
+        all_messages.append(obj)
+        if obj.get("session_id") and not state["session_id"]:
+            state["session_id"] = obj["session_id"]
+        if obj.get("type") == "result" or "subtype" in obj:
+            apply_result_event(obj, state)
+        elif obj.get("type") == "assistant":
+            state["agent_messages"] += extract_assistant_text(obj.get("message", {}))
 
-    agent_messages = extract_text(obj)
-    if not agent_messages and isinstance(obj, dict) and isinstance(obj.get("result"), str):
-        agent_messages = obj["result"]
-    all_messages = [obj] if isinstance(obj, dict) else []
-    return session_id, agent_messages, all_messages, err_message
+
+def build_command(args: argparse.Namespace) -> List[str]:
+    cmd = [
+        "claude",
+        "--print",
+        args.PROMPT,
+        "--output-format",
+        args.output_format,
+        "--input-format",
+        args.input_format,
+    ]
+
+    if args.include_partial_messages:
+        cmd.append("--include-partial-messages")
+    if args.output_format == "stream-json" or args.verbose:
+        cmd.append("--verbose")
+
+    if args.model:
+        cmd.extend(["--model", args.model])
+    if args.fallback_model:
+        cmd.extend(["--fallback-model", args.fallback_model])
+    if args.max_budget_usd:
+        cmd.extend(["--max-budget-usd", args.max_budget_usd])
+    if args.json_schema:
+        cmd.extend(["--json-schema", args.json_schema])
+
+    if args.continue_session:
+        cmd.append("--continue")
+    if args.SESSION_ID:
+        cmd.extend(["--resume", args.SESSION_ID])
+    if args.session_id:
+        cmd.extend(["--session-id", args.session_id])
+    if args.fork_session:
+        cmd.append("--fork-session")
+    if args.no_session_persistence:
+        cmd.append("--no-session-persistence")
+
+    for extra_dir in args.add_dir:
+        cmd.extend(["--add-dir", extra_dir])
+    if args.system_prompt:
+        cmd.extend(["--system-prompt", args.system_prompt])
+    if args.append_system_prompt:
+        cmd.extend(["--append-system-prompt", args.append_system_prompt])
+
+    for tool in args.allowed_tools:
+        cmd.extend(["--allowedTools", tool])
+    if args.tools:
+        cmd.extend(["--tools", args.tools])
+    for tool in args.disallowed_tools:
+        cmd.extend(["--disallowedTools", tool])
+
+    if args.permission_mode:
+        cmd.extend(["--permission-mode", args.permission_mode])
+    if args.permission_prompt_tool:
+        cmd.extend(["--permission-prompt-tool", args.permission_prompt_tool])
+
+    for cfg in args.mcp_config:
+        cmd.extend(["--mcp-config", cfg])
+    if args.strict_mcp_config:
+        cmd.append("--strict-mcp-config")
+    for settings in args.settings:
+        cmd.extend(["--settings", settings])
+    if args.setting_sources:
+        cmd.extend(["--setting-sources", args.setting_sources])
+    if args.agent:
+        cmd.extend(["--agent", args.agent])
+    if args.agents:
+        cmd.extend(["--agents", args.agents])
+
+    return cmd
 
 
-def main() -> None:
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Claude Code Bridge")
     parser.add_argument("--PROMPT", required=True, help="Instruction for the task to send to claude.")
     parser.add_argument("--cd", required=True, type=Path, help="Set the workspace root for claude before executing the task.")
@@ -148,7 +364,7 @@ def main() -> None:
     parser.add_argument("--allowed-tools", action="append", default=[], help="Tools to allow without prompting.")
     parser.add_argument("--disallowed-tools", action="append", default=[], help="Tools to remove from context.")
     parser.add_argument("--tools", default="", help="Comma/space-separated list of tools to enable.")
-    parser.add_argument("--permission-mode", default="", help="Start in a specified permission mode.")
+    parser.add_argument("--permission-mode", default="", help="Start in a permission mode (default/plan/acceptEdits/auto/dontAsk/bypassPermissions).")
     parser.add_argument("--permission-prompt-tool", default="", help="MCP tool to handle permission prompts.")
     parser.add_argument("--mcp-config", action="append", default=[], help="Load MCP servers from JSON files or strings.")
     parser.add_argument("--strict-mcp-config", action="store_true", help="Only use MCP servers from --mcp-config.")
@@ -160,139 +376,146 @@ def main() -> None:
     parser.add_argument("--include-partial-messages", action="store_true", help="Include partial streaming events.")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose CLI output (required for stream-json).")
     parser.add_argument(
+        "--timeout",
+        type=float,
+        default=0,
+        help="Terminate Claude after this many seconds. Default: no bridge timeout.",
+    )
+    parser.add_argument(
         "--return-all-messages",
         action="store_true",
         help="Return all messages (e.g. tool calls, traces) from the claude session.",
     )
+    return parser.parse_args()
 
-    args = parser.parse_args()
 
-    session_id_expected = args.output_format in ("json", "stream-json") and not args.no_session_persistence
+def main() -> None:
+    args = parse_args()
+
+    if args.timeout < 0:
+        emit_json({"success": False, "error": "`--timeout` must be zero or a positive number of seconds."}, exit_code=2)
 
     cd: Path = args.cd
-    if not cd.exists():
-        result = {
-            "success": False,
-            "error": f"The workspace root directory `{cd.absolute().as_posix()}` does not exist. Please check the path and try again.",
-        }
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-        return
+    error = preflight_check(cd)
+    if error:
+        emit_json({"success": False, "error": error}, exit_code=1)
 
-    cmd = ["claude", "--print", args.PROMPT, "--output-format", args.output_format, "--input-format", args.input_format]
+    cmd = build_command(args)
 
-    if args.include_partial_messages:
-        cmd.append("--include-partial-messages")
+    all_messages: List[Dict[str, Any]] = []
+    state: Dict[str, Any] = {
+        "agent_messages": "",
+        "result_text": None,
+        "session_id": None,
+        "subtype": None,
+        "is_error": False,
+        "total_cost_usd": None,
+        "usage": {},
+        "num_turns": None,
+        "tools_used": 0,
+        "permission_denials": [],
+        "terminal_reason": None,
+        "stop_reason": None,
+        "duration_ms": None,
+        "structured_output": None,
+        "rate_limited": False,
+        "model": None,
+        "errors": [],
+    }
+    raw_json_lines: List[str] = []
+    start_time = time.time()
+    returncode = 1
 
-    if args.output_format == "stream-json" and not args.verbose:
-        cmd.append("--verbose")
-    elif args.verbose:
-        cmd.append("--verbose")
+    try:
+        generator = stream_command(cmd, cwd=cd.absolute(), timeout_seconds=args.timeout)
+        while True:
+            try:
+                line = next(generator)
+            except StopIteration as finished:
+                returncode = int(finished.value or 0)
+                break
 
-    if args.model:
-        cmd.extend(["--model", args.model])
+            if args.output_format == "stream-json":
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    state["errors"].append(f"[json decode error] {line}")
+                    continue
+                if isinstance(event, dict):
+                    summarize_event(event, all_messages, state, start_time)
+            elif args.output_format == "json":
+                raw_json_lines.append(line)
+            else:  # text
+                state["agent_messages"] += line + "\n"
+    except Exception as exc:  # pragma: no cover - defensive boundary
+        emit_json({"success": False, "error": f"Failed to run Claude Code: {exc}"}, exit_code=1)
 
-    if args.fallback_model:
-        cmd.extend(["--fallback-model", args.fallback_model])
+    if args.output_format == "json":
+        parse_json_blob(raw_json_lines, all_messages, state)
+    elif args.output_format == "text":
+        state["agent_messages"] = state["agent_messages"].strip()
 
-    if args.max_budget_usd:
-        cmd.extend(["--max-budget-usd", args.max_budget_usd])
+    agent_messages = state["agent_messages"] or state["result_text"] or ""
 
-    if args.json_schema:
-        cmd.extend(["--json-schema", args.json_schema])
-
-    if args.continue_session:
-        cmd.append("--continue")
-
-    if args.SESSION_ID:
-        cmd.extend(["--resume", args.SESSION_ID])
-
-    if args.session_id:
-        cmd.extend(["--session-id", args.session_id])
-
-    if args.fork_session:
-        cmd.append("--fork-session")
-
-    if args.no_session_persistence:
-        cmd.append("--no-session-persistence")
-
-    for extra_dir in args.add_dir:
-        cmd.extend(["--add-dir", extra_dir])
-
-    if args.system_prompt:
-        cmd.extend(["--system-prompt", args.system_prompt])
-
-    if args.append_system_prompt:
-        cmd.extend(["--append-system-prompt", args.append_system_prompt])
-
-    for tool in args.allowed_tools:
-        cmd.extend(["--allowedTools", tool])
-
-    if args.tools:
-        cmd.extend(["--tools", args.tools])
-
-    for tool in args.disallowed_tools:
-        cmd.extend(["--disallowedTools", tool])
-
-    if args.permission_mode:
-        cmd.extend(["--permission-mode", args.permission_mode])
-
-    if args.permission_prompt_tool:
-        cmd.extend(["--permission-prompt-tool", args.permission_prompt_tool])
-
-    for cfg in args.mcp_config:
-        cmd.extend(["--mcp-config", cfg])
-
-    if args.strict_mcp_config:
-        cmd.append("--strict-mcp-config")
-
-    for settings in args.settings:
-        cmd.extend(["--settings", settings])
-
-    if args.setting_sources:
-        cmd.extend(["--setting-sources", args.setting_sources])
-
-    if args.agent:
-        cmd.extend(["--agent", args.agent])
-
-    if args.agents:
-        cmd.extend(["--agents", args.agents])
-
-    stdout_lines, stderr_lines, returncode = read_output_lines(cmd, cwd=cd.absolute().as_posix())
-
-    if args.output_format == "stream-json":
-        session_id, agent_messages, all_messages, err_message = parse_stream_json(stdout_lines)
-    elif args.output_format == "json":
-        session_id, agent_messages, all_messages, err_message = parse_json_output(stdout_lines)
+    # Determine success: prefer the authoritative result-event subtype; fall back to exit code.
+    if state["subtype"] is not None:
+        success = state["subtype"] == "success" and not state["is_error"]
     else:
-        session_id = args.SESSION_ID or args.session_id or None
-        agent_messages = "\n".join(stdout_lines).strip()
-        all_messages = []
-        err_message = ""
+        success = returncode == 0
 
-    success = returncode == 0
-    if not success and not err_message:
-        err_message = f"Claude Code exited with non-zero status: {returncode}"
-    if session_id is None and session_id_expected:
-        success = False
-        err_message = "Failed to get `SESSION_ID` from the claude session.\n\n" + err_message
+    warnings: List[str] = []
+    session_expected = args.output_format in ("json", "stream-json") and not args.no_session_persistence
+    if success and state["session_id"] is None and session_expected:
+        warnings.append("Could not capture SESSION_ID; multi-turn resume will not be possible for this run.")
 
-    stderr_text = "\n".join(stderr_lines).strip()
-    if stderr_text:
-        err_message = (err_message + "\n\n" if err_message else "") + "[stderr]\n" + stderr_text
+    if not success:
+        if state["subtype"] and state["subtype"] != "success":
+            state["errors"].append(f"Claude terminated with subtype: {state['subtype']}.")
+        if returncode != 0:
+            state["errors"].append(f"Claude Code exited with non-zero status: {returncode}.")
+        if args.timeout and returncode != 0:
+            state["errors"].append(f"Claude may have timed out after {args.timeout:g} seconds.")
+        if not agent_messages and not state["errors"]:
+            state["errors"].append("No response captured from Claude Code.")
 
     result: Dict[str, Any] = {"success": success}
-    if session_id is not None:
-        result["SESSION_ID"] = session_id
+    if state["session_id"] is not None:
+        result["SESSION_ID"] = state["session_id"]
     result["agent_messages"] = agent_messages
-    if success:
-        pass
-    else:
-        result["error"] = err_message
-
+    if state["model"]:
+        result["model"] = state["model"]
+    if state["subtype"]:
+        result["subtype"] = state["subtype"]
+    if state["total_cost_usd"] is not None:
+        result["total_cost_usd"] = state["total_cost_usd"]
+    if state["usage"]:
+        usage = state["usage"]
+        compact = {
+            key: usage.get(key)
+            for key in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+            if usage.get(key) is not None
+        }
+        if compact:
+            result["usage"] = compact
+    if state["num_turns"] is not None:
+        result["num_turns"] = state["num_turns"]
+    if state["tools_used"]:
+        result["tools_used"] = state["tools_used"]
+    if state["permission_denials"]:
+        result["permission_denials"] = state["permission_denials"]
+    if state["structured_output"] is not None:
+        result["structured_output"] = state["structured_output"]
+    if state["rate_limited"]:
+        result["rate_limited"] = True
+    if warnings:
+        result["warnings"] = warnings
+    if not success:
+        result["error"] = "\n".join(str(err) for err in state["errors"] if err) or "No response from Claude Code."
     if args.return_all_messages:
         result["all_messages"] = all_messages
 
     print(json.dumps(result, indent=2, ensure_ascii=False))
+    raise SystemExit(0 if success else 1)
 
 
 if __name__ == "__main__":

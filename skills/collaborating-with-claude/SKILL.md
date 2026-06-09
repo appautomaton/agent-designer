@@ -45,7 +45,7 @@ python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py \
   --cd "." --model sonnet --PROMPT "$PROMPT" --output-format stream-json
 ```
 
-**Returns:** `{ "success": true, "SESSION_ID": "...", "agent_messages": "..." }`
+**Returns** (stdout JSON): `{ "success": true, "SESSION_ID": "...", "agent_messages": "...", "subtype": "success", "total_cost_usd": 0.03, "usage": {...}, "num_turns": 1 }` — plus `tools_used` / `permission_denials` / `structured_output` when relevant. Live timestamped progress (session, responses, tools, cost) streams to **stderr** — watch it when running in the background. The bridge exits non-zero on failure.
 
 ## Multi-turn sessions
 
@@ -98,7 +98,7 @@ Use `stream-json` or `json` output format to capture `SESSION_ID`. The `text` fo
 **Advanced** (use `--help` for full list):
 `--fallback-model` · `--max-budget-usd` · `--add-dir` · `--system-prompt` · `--append-system-prompt` · `--mcp-config` · `--json-schema` · `--tools` · `--agent` · `--agents` · `--no-session-persistence` · `--return-all-messages` · `--verbose` · `--include-partial-messages`
 
-Default timeout: set `timeout_ms` to **600000** (10 min) when invoking via Codex command runner.
+Timeouts: the bridge accepts `--timeout <seconds>` (kills Claude and returns a clean error). Also set the host's `timeout_ms` to **600000** (10 min) when invoking via a command runner.
 
 ## Model selection
 
@@ -116,6 +116,7 @@ Use `assets/prompt-template.md` for structured starters. Key principles:
 
 - Smoke test: `python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py --help`
 - Session test: run one prompt with `--output-format stream-json`, confirm JSON contains `success: true` and a `SESSION_ID`.
+- Telemetry check: a successful run returns `subtype`, `total_cost_usd`, `usage`, and `num_turns`, streams progress to stderr, and exits non-zero on failure.
 - Ensure Claude Code is logged in (`claude` then `/login`) before headless usage.
 
 ## Collaboration State Capsule
