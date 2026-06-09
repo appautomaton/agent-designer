@@ -1,8 +1,8 @@
 # Claude Prompt Template (Token-Efficient)
 
-Note: Prefer choosing models via CLI aliases (e.g., `--model sonnet` for routine work, `--model opus` for harder tasks) instead of hard-coding versioned model IDs. If you omit `--model`, Claude Code uses its configured default.
+Prefer model aliases (`--model sonnet` for routine work, `--model opus` for harder tasks); omit `--model` to use the CLI default. For complex or high-stakes work, upgrade to the XML blocks in [../references/prompt-blocks.md](../references/prompt-blocks.md) and recipes in [../references/prompt-recipes.md](../references/prompt-recipes.md).
 
-## Analysis / Plan (no code changes)
+## Analysis / Plan (read-only)
 
 ```
 Task:
@@ -13,7 +13,7 @@ Repo pointers:
 
 Constraints:
 - Keep it concise and actionable.
-- Do not paste large snippets; reference files/lines instead.
+- Reference files/lines instead of pasting code.
 
 Output:
 - Bullet list of findings and a proposed plan.
@@ -30,7 +30,6 @@ Repo pointers:
 
 Constraints:
 - OUTPUT: Unified Diff Patch ONLY.
-- Strictly prohibit any actual modifications.
 - Minimal, focused changes. No unrelated refactors.
 
 Output:
@@ -49,3 +48,35 @@ Constraints:
 Input diff:
 <paste unified diff here>
 ```
+
+## Implementation (worktree + acceptEdits)
+
+```
+Task:
+- <what to implement>
+
+Repo pointers:
+- <entry file paths + approximate line numbers>
+
+Done criteria:
+- <specific acceptance criteria>
+
+Constraints:
+- Stay focused on the stated task. No unrelated refactors.
+- Run the narrowest test that proves correctness.
+
+Output:
+- List of files changed and a brief summary.
+```
+
+Run implementation with write access only in an isolated worktree (`--permission-mode acceptEdits`); see [../references/handoff-patterns.md](../references/handoff-patterns.md).
+
+## When to upgrade to XML blocks
+
+Use the XML blocks in [../references/prompt-blocks.md](../references/prompt-blocks.md) when:
+- The task is multi-step and you need a `<completeness_contract>`.
+- Correctness matters and you want a `<verification_loop>`.
+- You're doing review/research and need `<grounding_rules>`.
+- Claude keeps stopping early — add `<default_follow_through_policy>`.
+
+See [../references/prompt-recipes.md](../references/prompt-recipes.md) for ready-to-use end-to-end templates.

@@ -7,33 +7,31 @@ metadata:
 
 # Collaborating with Claude Code
 
-Use Claude Code CLI as a collaborator while Codex remains the primary implementer.
+Drive Claude Code headlessly as an independent collaborator while the calling agent stays responsible for verification, synthesis, and final user-facing decisions.
 
-The bridge script (`scripts/claude_bridge.py`) wraps `claude --print`, returns structured JSON, and manages session continuity via `SESSION_ID`.
+The bridge (`scripts/claude_bridge.py`) wraps `claude --print`, streams progress to stderr, returns structured JSON with telemetry, and manages multi-turn continuity via `SESSION_ID`. Always go through the bridge — don't invoke `claude` directly — so output parsing and session handling stay consistent.
+
+In Claude Code, run non-trivial calls in the background and watch the stderr progress:
+
+```text
+Bash tool call:
+  command: python3 skills/collaborating-with-claude/scripts/claude_bridge.py --cd "/project" --PROMPT "Analyze auth flow in src/auth/"
+  run_in_background: true
+```
+
+`run_in_background` is a host tool parameter, not a shell argument. Use the task-output view to monitor timestamped stderr progress (session, responses, tools, cost) and the final JSON result.
 
 ## Safety
 
-Claude Code can read and edit files by default when run with `--print`. The bridge exposes flags to restrict this:
+Default to read-only delegation: `--permission-mode plan` (analyze, no edits/commands) or `--tools "Read,Glob,Grep"`. Grant writes only deliberately (`acceptEdits`/`auto`), preferably in an isolated worktree. Do not hand secrets, private keys, or production data to Claude. Full permission-mode set and the worktree pattern: [cli-reference.md](references/cli-reference.md), [handoff-patterns.md](references/handoff-patterns.md).
 
-- `--permission-mode plan` — read-only mode, blocks edits and shell commands. **Recommended for review/consultation tasks.**
-- `--disallowed-tools Edit Write Bash` — selectively block specific tools.
-- Include `OUTPUT: Unified Diff Patch ONLY. Do not modify any files.` in your prompt for code changes. This is a convention, not enforced.
+## When to use / not use
 
-Always use the bridge script — do not invoke `claude` directly. This keeps output parsing and session handling consistent.
-
-## When to use
-- Second opinion on design tradeoffs, edge cases, or test gaps.
-- Proposing or reviewing a unified diff.
-- Multi-turn back-and-forth while you implement locally.
-
-## When not to use
-- Trivial one-shot tasks — do them in Codex directly.
-- Tasks requiring authoritative facts with citations (Claude may guess).
-- Anything involving secrets, private keys, or prod data.
+Use for: second opinions on design, edge cases, or test gaps; proposing or reviewing a unified diff; multi-turn analysis while you implement. Skip for: trivial one-shot edits (do them directly); tasks needing authoritative cited facts (Claude may guess); anything touching secrets or prod data.
 
 ## Quick start
 
-⚠️ Backticks in prompts trigger shell command substitution — use a heredoc. See `references/shell-quoting.md`.
+⚠️ Backticks / `$VARS` in prompts trigger shell expansion — use a single-quoted heredoc, or `--prompt-file` for large/generated prompts. See [shell-quoting.md](references/shell-quoting.md).
 
 ```bash
 PROMPT="$(cat <<'EOF'
@@ -41,92 +39,78 @@ Review src/auth.py around login() and propose fixes.
 OUTPUT: Unified Diff Patch ONLY.
 EOF
 )"
-python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py \
-  --cd "." --model sonnet --PROMPT "$PROMPT" --output-format stream-json
+python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
+  --cd "." --model sonnet --permission-mode plan --PROMPT "$PROMPT" --output-format stream-json
 ```
 
-**Returns** (stdout JSON): `{ "success": true, "SESSION_ID": "...", "agent_messages": "...", "subtype": "success", "total_cost_usd": 0.03, "usage": {...}, "num_turns": 1 }` — plus `tools_used` / `permission_denials` / `structured_output` when relevant. Live timestamped progress (session, responses, tools, cost) streams to **stderr** — watch it when running in the background. The bridge exits non-zero on failure.
+For large or shell-sensitive prompts, write the prompt to a file and pass `--prompt-file /tmp/prompt.md` (piped via stdin — no argv/quoting limits).
+
+**Returns** (stdout JSON): `{ "success": true, "SESSION_ID": "...", "agent_messages": "...", "model": "...", "subtype": "success", "total_cost_usd": 0.03, "usage": {...}, "num_turns": 1 }` — plus `tools_used` / `permission_denials` / `structured_output` / `is_error` when relevant. Progress streams to **stderr**; the bridge exits non-zero on failure.
 
 ## Multi-turn sessions
 
-Capture `SESSION_ID` from the first call and pass it back. Session selectors are mutually exclusive — pick one:
+Capture `SESSION_ID` from the first call and pass it back (selectors are mutually exclusive):
 
 ```bash
 # Turn 1
-python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py \
+python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
   --cd "." --model sonnet --PROMPT "Analyze the bug in foo()." --output-format stream-json
 
-# Turn 2 — resume by ID
-python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py \
+# Turn 2 — resume by ID (use the same --cd)
+python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
   --cd "." --model sonnet --SESSION_ID "<id>" --PROMPT "Propose a fix." --output-format stream-json
 
-# Or resume the most recent session
-python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py \
+# Or resume the most recent session in this directory
+python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
   --cd "." --model sonnet --continue --PROMPT "What about edge cases?" --output-format stream-json
 ```
 
-Use `stream-json` or `json` output format to capture `SESSION_ID`. The `text` format does not emit one for new sessions.
+Use `stream-json` or `json` output to capture `SESSION_ID`.
 
 ## Bridge flags
 
-**Core:**
+**Core:** `--PROMPT` (or `--prompt-file`) · `--cd` (required) · `--model` (`sonnet`/`opus`/full id) · `--output-format` (`text`·`json`·`stream-json`, default `stream-json`).
 
-| Flag | Purpose | Default |
-|---|---|---|
-| `--PROMPT` | Prompt text (required) | — |
-| `--cd` | Workspace root (required) | — |
-| `--model` | Model alias (`sonnet`, `opus`) or full name | CLI default |
-| `--output-format` | `text` · `json` · `stream-json` | `stream-json` |
+**Sessions** (mutually exclusive): `--SESSION_ID` · `--session-id <uuid>` · `--continue`; plus `--fork-session`, `--no-session-persistence`.
 
-**Sessions** (mutually exclusive):
+**Permissions:** `--permission-mode` (`default`·`plan`·`acceptEdits`·`auto`·`dontAsk`·`bypassPermissions`) · `--tools` · `--allowed-tools` · `--disallowed-tools`. Footgun: the space in `Bash(git diff *)` is load-bearing.
 
-| Flag | Purpose |
-|---|---|
-| `--SESSION_ID` | Resume by session ID |
-| `--session-id` | Use a specific UUID |
-| `--continue` | Resume the most recent session |
-| `--fork-session` | Fork when resuming (new ID, shared history) |
+**Reproducibility & cost:** `--bare` / `--safe-mode` (skip customizations; `--bare` needs `ANTHROPIC_API_KEY`) · `--effort` (`low`→`max`) · `--max-budget-usd` · `--max-turns` · `--timeout <seconds>`.
 
-**Safety & permissions:**
+**Context & advanced:** `--prompt-file` · `--system-prompt[-file]` · `--append-system-prompt[-file]` · `--add-dir` · `--json-schema` · `--mcp-config` · `--settings` · `--agent`/`--agents` · `--return-all-messages` · `--verbose`.
 
-| Flag | Purpose |
-|---|---|
-| `--permission-mode` | `default` · `plan` · `bypassPermissions` |
-| `--allowed-tools` | Tools to allow without prompting (repeatable) |
-| `--disallowed-tools` | Tools to block entirely (repeatable) |
+Full semantics in [cli-reference.md](references/cli-reference.md). Set the host's `timeout_ms` to **600000** (10 min) when invoking via a command runner.
 
-**Advanced** (use `--help` for full list):
-`--fallback-model` · `--max-budget-usd` · `--add-dir` · `--system-prompt` · `--append-system-prompt` · `--mcp-config` · `--json-schema` · `--tools` · `--agent` · `--agents` · `--no-session-persistence` · `--return-all-messages` · `--verbose` · `--include-partial-messages`
+## Tune performance
 
-Timeouts: the bridge accepts `--timeout <seconds>` (kills Claude and returns a clean error). Also set the host's `timeout_ms` to **600000** (10 min) when invoking via a command runner.
+`--model sonnet` for routine work, `--model opus` for hard tasks; `--effort low→max` trades depth for speed/cost; `--max-budget-usd` caps spend. Omit `--model` to use the CLI default.
 
-## Model selection
+## Prompting
 
-Use aliases — `--model sonnet` for routine work, `--model opus` for complex tasks. Omit `--model` to use the CLI's configured default. For strict reproducibility, pass a full model name.
-
-## Prompting patterns
-
-Use `assets/prompt-template.md` for structured starters. Key principles:
-
-- **Point, don't paste** — give file paths and line numbers, not code blocks. Use `--cd` (and `--add-dir` if needed) so Claude can read files itself.
-- **One objective per prompt** — multiple competing goals produce noisy output.
-- **Enforce output format** — append `OUTPUT: Unified Diff Patch ONLY.` for code changes.
+Quick starters in [prompt-template.md](assets/prompt-template.md); composable XML blocks in [prompt-blocks.md](references/prompt-blocks.md); end-to-end recipes in [prompt-recipes.md](references/prompt-recipes.md); delegation patterns and principles in [patterns.md](references/patterns.md). In short: point (file:line), don't paste; one objective per run; state the output shape; verify Claude's output before acting.
 
 ## Verification
 
-- Smoke test: `python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py --help`
-- Session test: run one prompt with `--output-format stream-json`, confirm JSON contains `success: true` and a `SESSION_ID`.
-- Telemetry check: a successful run returns `subtype`, `total_cost_usd`, `usage`, and `num_turns`, streams progress to stderr, and exits non-zero on failure.
-- Ensure Claude Code is logged in (`claude` then `/login`) before headless usage.
+- Smoke: `python3 skills/collaborating-with-claude/scripts/claude_bridge.py --help`
+- Syntax: `python3 -m py_compile skills/collaborating-with-claude/scripts/claude_bridge.py`
+- Session: run a prompt with `--output-format stream-json`; confirm JSON has `success: true`, a `SESSION_ID`, and telemetry (`subtype`/`total_cost_usd`/`usage`/`num_turns`); failures exit non-zero.
+- Ensure Claude is logged in (`claude` then `/login`), or set `ANTHROPIC_API_KEY` (required for `--bare`).
 
 ## Collaboration State Capsule
 
-Keep this block updated while collaborating:
+Keep this updated across turns (referenced by [handoff-patterns.md](references/handoff-patterns.md)):
 
 ```
-[Claude Capsule] Goal: | SID: | Model: | Files: | Last: | Next:
+[Claude Capsule] Goal: | SID: | Model: | PermMode: | Files: | Last: | Next:
 ```
 
 ## References
-- [Prompt template](assets/prompt-template.md) — structured prompt patterns
-- [Shell quoting](references/shell-quoting.md) — heredoc quoting for backticks
+- [prompt-template.md](assets/prompt-template.md) — quick plain-text starters
+- [prompt-blocks.md](references/prompt-blocks.md) — composable XML blocks
+- [prompt-recipes.md](references/prompt-recipes.md) — end-to-end templates
+- [prompt-antipatterns.md](references/prompt-antipatterns.md) — common mistakes
+- [patterns.md](references/patterns.md) — when to delegate + prompt patterns
+- [handoff-patterns.md](references/handoff-patterns.md) — read-only / worktree / synthesis
+- [parallel.md](references/parallel.md) — parallel runs and worktree isolation
+- [cli-reference.md](references/cli-reference.md) — verified Claude CLI flags + event schema
+- [shell-quoting.md](references/shell-quoting.md) — safe heredoc prompts

@@ -7,7 +7,7 @@ When invoking `claude_bridge.py`, be careful: your *shell* parses the command li
 Markdown inline code uses backticks (`` `like/this` ``). In bash/zsh, backticks mean **command substitution**, even inside double quotes, so this breaks:
 
 ```bash
-python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py \
+python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
   --cd "." \
   --PROMPT "Analyze `tmp/eth_dev_news_raw.json` and summarize."
 ```
@@ -28,7 +28,7 @@ Set `as_of` to `YYYY-MM-DD`.
 EOF
 )"
 
-python3 .codex/skills/collaborating-with-claude/scripts/claude_bridge.py \
+python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
   --cd "." \
   --PROMPT "$PROMPT" \
   --output-format stream-json

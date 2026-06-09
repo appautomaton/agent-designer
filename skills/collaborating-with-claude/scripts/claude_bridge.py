@@ -83,6 +83,7 @@ def stream_command(
     cmd: List[str],
     cwd: Optional[Path] = None,
     timeout_seconds: float = 0,
+    stdin_file: Optional[Path] = None,
 ) -> Generator[str, None, int]:
     """Execute a command and yield stdout lines while forwarding stderr progress."""
     resolved = cmd.copy()
@@ -92,17 +93,26 @@ def stream_command(
         comspec = os.environ.get("COMSPEC", "cmd.exe")
         resolved = [comspec, "/d", "/s", "/c", " ".join(f'"{arg}"' for arg in resolved)]
 
-    proc = subprocess.Popen(
-        resolved,
-        shell=False,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        universal_newlines=True,
-        encoding="utf-8",
-        errors="replace",
-        cwd=str(cwd) if cwd is not None else None,
-    )
+    stdin_handle = None
+    try:
+        stdin_target: Any = subprocess.DEVNULL
+        if stdin_file is not None:
+            stdin_handle = stdin_file.open("r", encoding="utf-8", errors="replace")
+            stdin_target = stdin_handle
+        proc = subprocess.Popen(
+            resolved,
+            shell=False,
+            stdin=stdin_target,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            encoding="utf-8",
+            errors="replace",
+            cwd=str(cwd) if cwd is not None else None,
+        )
+    finally:
+        if stdin_handle is not None:
+            stdin_handle.close()
 
     out_q: "queue.Queue[Optional[str]]" = queue.Queue()
     started_at = time.time()
@@ -204,7 +214,6 @@ def summarize_event(
             status(f"API retry {event.get('attempt')}/{event.get('max_retries')} ({event.get('error', '?')})")
         elif subtype == "compact_boundary":
             status("Context compacted")
-        # hook_started / hook_response and other system events are intentionally quiet.
 
     elif etype == "assistant":
         message = event.get("message", {})
@@ -272,16 +281,11 @@ def parse_json_blob(raw_lines: List[str], all_messages: List[Dict[str, Any]], st
             state["agent_messages"] += extract_assistant_text(obj.get("message", {}))
 
 
-def build_command(args: argparse.Namespace) -> List[str]:
-    cmd = [
-        "claude",
-        "--print",
-        args.PROMPT,
-        "--output-format",
-        args.output_format,
-        "--input-format",
-        args.input_format,
-    ]
+def build_command(args: argparse.Namespace, prompt_arg: Optional[str]) -> List[str]:
+    cmd = ["claude", "--print"]
+    if prompt_arg is not None:
+        cmd.append(prompt_arg)
+    cmd.extend(["--output-format", args.output_format, "--input-format", args.input_format])
 
     if args.include_partial_messages:
         cmd.append("--include-partial-messages")
@@ -290,10 +294,18 @@ def build_command(args: argparse.Namespace) -> List[str]:
 
     if args.model:
         cmd.extend(["--model", args.model])
+    if args.effort:
+        cmd.extend(["--effort", args.effort])
+    if args.bare:
+        cmd.append("--bare")
+    if args.safe_mode:
+        cmd.append("--safe-mode")
     if args.fallback_model:
         cmd.extend(["--fallback-model", args.fallback_model])
     if args.max_budget_usd:
         cmd.extend(["--max-budget-usd", args.max_budget_usd])
+    if args.max_turns:
+        cmd.extend(["--max-turns", args.max_turns])
     if args.json_schema:
         cmd.extend(["--json-schema", args.json_schema])
 
@@ -312,8 +324,12 @@ def build_command(args: argparse.Namespace) -> List[str]:
         cmd.extend(["--add-dir", extra_dir])
     if args.system_prompt:
         cmd.extend(["--system-prompt", args.system_prompt])
+    if args.system_prompt_file:
+        cmd.extend(["--system-prompt-file", args.system_prompt_file])
     if args.append_system_prompt:
         cmd.extend(["--append-system-prompt", args.append_system_prompt])
+    if args.append_system_prompt_file:
+        cmd.extend(["--append-system-prompt-file", args.append_system_prompt_file])
 
     for tool in args.allowed_tools:
         cmd.extend(["--allowedTools", tool])
@@ -345,7 +361,8 @@ def build_command(args: argparse.Namespace) -> List[str]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Claude Code Bridge")
-    parser.add_argument("--PROMPT", required=True, help="Instruction for the task to send to claude.")
+    parser.add_argument("--PROMPT", default="", help="Instruction to send to claude. Use this or --prompt-file.")
+    parser.add_argument("--prompt-file", type=Path, default=None, help="Read the prompt from a file and pipe it to claude via stdin (avoids argv/shell-quoting limits).")
     parser.add_argument("--cd", required=True, type=Path, help="Set the workspace root for claude before executing the task.")
     session_group = parser.add_mutually_exclusive_group()
     session_group.add_argument("--SESSION_ID", default="", help="Resume the specified session of claude.")
@@ -354,17 +371,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fork-session", action="store_true", help="Fork session when resuming/continuing.")
     parser.add_argument("--no-session-persistence", action="store_true", help="Disable session persistence (print mode only).")
     parser.add_argument("--model", default="", help="Model override (alias like 'sonnet'/'opus', or a full model name).")
-    parser.add_argument("--fallback-model", default="", help="Fallback model when the default is overloaded.")
+    parser.add_argument("--effort", default="", choices=["", "low", "medium", "high", "xhigh", "max"], help="Reasoning effort level (model-dependent).")
+    parser.add_argument("--bare", action="store_true", help="Minimal mode: skip hooks/skills/plugins/MCP/CLAUDE.md/keychain. Requires ANTHROPIC_API_KEY or apiKeyHelper.")
+    parser.add_argument("--safe-mode", dest="safe_mode", action="store_true", help="Disable customizations (CLAUDE.md/skills/plugins/hooks/MCP) but keep normal auth/model/permissions.")
+    parser.add_argument("--fallback-model", default="", help="Fallback model(s), comma-separated, when the default is overloaded.")
     parser.add_argument("--max-budget-usd", default="", help="Max USD budget for the call (print mode only).")
-    parser.add_argument("--json-schema", default="", help="JSON schema for structured output validation.")
+    parser.add_argument("--max-turns", default="", help="Maximum agentic turns before stopping (print mode only).")
+    parser.add_argument("--json-schema", default="", help="JSON schema for structured output (validated post-generation, not constrained decoding).")
     parser.add_argument("--input-format", default="text", choices=["text", "stream-json"], help="Claude input format.")
     parser.add_argument("--add-dir", action="append", default=[], help="Add additional working directories.")
     parser.add_argument("--append-system-prompt", default="", help="Append text to the default system prompt.")
+    parser.add_argument("--append-system-prompt-file", default="", help="Append a file's contents to the default system prompt.")
     parser.add_argument("--system-prompt", default="", help="Replace the system prompt for the session.")
+    parser.add_argument("--system-prompt-file", default="", help="Replace the system prompt with a file's contents.")
     parser.add_argument("--allowed-tools", action="append", default=[], help="Tools to allow without prompting.")
     parser.add_argument("--disallowed-tools", action="append", default=[], help="Tools to remove from context.")
-    parser.add_argument("--tools", default="", help="Comma/space-separated list of tools to enable.")
-    parser.add_argument("--permission-mode", default="", help="Start in a permission mode (default/plan/acceptEdits/auto/dontAsk/bypassPermissions).")
+    parser.add_argument("--tools", default="", help='Built-in tools to enable: "" (none), "default", or e.g. "Read,Glob,Grep".')
+    parser.add_argument("--permission-mode", default="", help="Permission mode: default/plan/acceptEdits/auto/dontAsk/bypassPermissions.")
     parser.add_argument("--permission-prompt-tool", default="", help="MCP tool to handle permission prompts.")
     parser.add_argument("--mcp-config", action="append", default=[], help="Load MCP servers from JSON files or strings.")
     parser.add_argument("--strict-mcp-config", action="store_true", help="Only use MCP servers from --mcp-config.")
@@ -395,12 +418,31 @@ def main() -> None:
     if args.timeout < 0:
         emit_json({"success": False, "error": "`--timeout` must be zero or a positive number of seconds."}, exit_code=2)
 
+    # Resolve the prompt source: exactly one of --PROMPT / --prompt-file.
+    if args.PROMPT and args.prompt_file is not None:
+        emit_json({"success": False, "error": "Use either `--PROMPT` or `--prompt-file`, not both."}, exit_code=2)
+    if not args.PROMPT and args.prompt_file is None:
+        emit_json({"success": False, "error": "Provide `--PROMPT` or `--prompt-file`."}, exit_code=2)
+    stdin_file: Optional[Path] = None
+    prompt_arg: Optional[str] = args.PROMPT
+    if args.prompt_file is not None:
+        if not args.prompt_file.is_file():
+            emit_json({"success": False, "error": f"Prompt file not found: {args.prompt_file}"}, exit_code=2)
+        prompt_arg = None
+        stdin_file = args.prompt_file
+
     cd: Path = args.cd
     error = preflight_check(cd)
     if error:
         emit_json({"success": False, "error": error}, exit_code=1)
 
-    cmd = build_command(args)
+    warnings: List[str] = []
+    if args.bare and not os.environ.get("ANTHROPIC_API_KEY"):
+        warnings.append(
+            "--bare ignores OAuth/keychain auth; set ANTHROPIC_API_KEY (or apiKeyHelper via --settings) or the call will fail to authenticate."
+        )
+
+    cmd = build_command(args, prompt_arg)
 
     all_messages: List[Dict[str, Any]] = []
     state: Dict[str, Any] = {
@@ -427,7 +469,7 @@ def main() -> None:
     returncode = 1
 
     try:
-        generator = stream_command(cmd, cwd=cd.absolute(), timeout_seconds=args.timeout)
+        generator = stream_command(cmd, cwd=cd.absolute(), timeout_seconds=args.timeout, stdin_file=stdin_file)
         while True:
             try:
                 line = next(generator)
@@ -448,7 +490,7 @@ def main() -> None:
             else:  # text
                 state["agent_messages"] += line + "\n"
     except Exception as exc:  # pragma: no cover - defensive boundary
-        emit_json({"success": False, "error": f"Failed to run Claude Code: {exc}"}, exit_code=1)
+        emit_json({"success": False, "error": f"Failed to run Claude Code: {exc}", "warnings": warnings}, exit_code=1)
 
     if args.output_format == "json":
         parse_json_blob(raw_json_lines, all_messages, state)
@@ -463,7 +505,6 @@ def main() -> None:
     else:
         success = returncode == 0
 
-    warnings: List[str] = []
     session_expected = args.output_format in ("json", "stream-json") and not args.no_session_persistence
     if success and state["session_id"] is None and session_expected:
         warnings.append("Could not capture SESSION_ID; multi-turn resume will not be possible for this run.")
@@ -486,6 +527,8 @@ def main() -> None:
         result["model"] = state["model"]
     if state["subtype"]:
         result["subtype"] = state["subtype"]
+    if state["is_error"]:
+        result["is_error"] = True
     if state["total_cost_usd"] is not None:
         result["total_cost_usd"] = state["total_cost_usd"]
     if state["usage"]:
