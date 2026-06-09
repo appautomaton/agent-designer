@@ -19,11 +19,13 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any, Dict, Generator, List, Optional, Tuple
 
 
 SANDBOX_MODES = ("read-only", "workspace-write", "danger-full-access")
 PATH_WARNING_PREFIX = "WARNING: proceeding, even though we could not update PATH:"
+STDIN_INFO_PREFIX = "Reading additional input from stdin..."
+APPROVAL_POLICIES = ("untrusted", "on-failure", "on-request", "never")
 
 
 def emit_json(result: Dict[str, Any], exit_code: int = 0) -> None:
@@ -78,9 +80,15 @@ def normalize_sandbox(args: argparse.Namespace, warnings: List[str]) -> str:
     return sandbox
 
 
-def build_command(args: argparse.Namespace, cd: Path, sandbox: str) -> List[str]:
+def build_command(args: argparse.Namespace, cd: Path, sandbox: str, prompt_arg: str) -> List[str]:
     """Build a Codex CLI command compatible with current `codex exec`."""
-    cmd = ["codex", "exec", "--json", "-C", cd.absolute().as_posix(), "-s", sandbox]
+    cmd = ["codex"]
+    if args.search:
+        cmd.append("--search")
+    if args.ask_for_approval:
+        cmd.extend(["-a", args.ask_for_approval])
+
+    cmd.extend(["exec", "--json", "-C", cd.absolute().as_posix(), "-s", sandbox])
 
     for add_dir in args.add_dir:
         cmd.extend(["--add-dir", add_dir])
@@ -126,19 +134,23 @@ def build_command(args: argparse.Namespace, cd: Path, sandbox: str) -> List[str]
         cmd.extend(["--disable", feature])
 
     if args.SESSION_ID or args.last:
+        if args.resume_all:
+            cmd.append("--all")
         if args.last:
             cmd.append("--last")
         elif args.SESSION_ID:
             cmd.append(args.SESSION_ID)
 
-    prompt = args.PROMPT
-    if os.name == "nt":
-        prompt = prompt.replace("\n", "\\n").replace("\r", "\\r")
-    cmd.extend(["--", prompt])
+    cmd.extend(["--", prompt_arg])
     return cmd
 
 
-def stream_command(cmd: List[str], cwd: Optional[Path] = None) -> Generator[str, None, int]:
+def stream_command(
+    cmd: List[str],
+    cwd: Optional[Path] = None,
+    stdin_file: Optional[Path] = None,
+    timeout_seconds: float = 0,
+) -> Generator[str, None, int]:
     """Execute a command and yield stdout JSONL lines while forwarding stderr progress."""
     resolved = cmd.copy()
     resolved[0] = find_executable(cmd[0])
@@ -147,19 +159,30 @@ def stream_command(cmd: List[str], cwd: Optional[Path] = None) -> Generator[str,
         comspec = os.environ.get("COMSPEC", "cmd.exe")
         resolved = [comspec, "/d", "/s", "/c", " ".join(f'"{arg}"' for arg in resolved)]
 
-    proc = subprocess.Popen(
-        resolved,
-        shell=False,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        universal_newlines=True,
-        encoding="utf-8",
-        errors="replace",
-        cwd=str(cwd) if cwd is not None else None,
-    )
+    stdin_handle = None
+    try:
+        stdin = subprocess.DEVNULL
+        if stdin_file is not None:
+            stdin_handle = stdin_file.open("r", encoding="utf-8", errors="replace")
+            stdin = stdin_handle
+
+        proc = subprocess.Popen(
+            resolved,
+            shell=False,
+            stdin=stdin,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            encoding="utf-8",
+            errors="replace",
+            cwd=str(cwd) if cwd is not None else None,
+        )
+    finally:
+        if stdin_handle is not None:
+            stdin_handle.close()
 
     out_q: queue.Queue[Optional[str]] = queue.Queue()
+    started_at = time.time()
 
     def read_stdout() -> None:
         assert proc.stdout is not None
@@ -181,7 +204,7 @@ def stream_command(cmd: List[str], cwd: Optional[Path] = None) -> Generator[str,
         assert proc.stderr is not None
         for line in iter(proc.stderr.readline, ""):
             text = line.rstrip()
-            if text and not text.startswith(PATH_WARNING_PREFIX):
+            if text and not text.startswith(PATH_WARNING_PREFIX) and not text.startswith(STDIN_INFO_PREFIX):
                 print(f"[codex stderr] {text}", file=sys.stderr, flush=True)
         proc.stderr.close()
 
@@ -191,6 +214,15 @@ def stream_command(cmd: List[str], cwd: Optional[Path] = None) -> Generator[str,
     t_err.start()
 
     while True:
+        if timeout_seconds and time.time() - started_at > timeout_seconds:
+            print(
+                f"[codex stderr] timeout after {timeout_seconds:g}s; terminating Codex",
+                file=sys.stderr,
+                flush=True,
+            )
+            proc.kill()
+            proc.wait()
+            return 124
         try:
             line = out_q.get(timeout=0.5)
             if line is None:
@@ -230,6 +262,8 @@ def summarize_event(
     elif event_type == "turn.completed":
         state["turn_completed"] = True
         usage = event.get("usage", {})
+        if usage:
+            state["usage"] = usage
         tokens_in = usage.get("input_tokens")
         tokens_out = usage.get("output_tokens")
         if tokens_in is not None or tokens_out is not None:
@@ -240,6 +274,25 @@ def summarize_event(
     item = event.get("item", {})
     if isinstance(item, dict):
         item_type = item.get("type", "")
+        if event_type == "item.completed" and item_type:
+            counts = state["activity_counts"]
+            counts[item_type] = counts.get(item_type, 0) + 1
+            item_type_lower = str(item_type).lower()
+            if "web_search" in item_type_lower or "web-search" in item_type_lower:
+                state["web_searches"] += 1
+                status("Web search completed")
+            elif "mcp" in item_type_lower:
+                state["mcp_tools_ran"] += 1
+                status(f"MCP activity: {item_type}")
+            elif "file" in item_type_lower and (
+                "change" in item_type_lower or "patch" in item_type_lower or "edit" in item_type_lower
+            ):
+                state["files_changed"] += 1
+                status(f"File activity: {item_type}")
+            elif "plan" in item_type_lower:
+                state["plan_updates"] += 1
+                status("Plan updated")
+
         if item_type == "agent_message" and isinstance(item.get("text"), str):
             state["agent_messages"] += item["text"]
             preview = item["text"][:80].replace("\n", " ")
@@ -266,10 +319,22 @@ def summarize_event(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Codex Bridge")
-    parser.add_argument("--PROMPT", required=True, help="Instruction to send to Codex.")
+    parser.add_argument("--PROMPT", default="", help="Instruction to send to Codex.")
+    parser.add_argument("--prompt-file", type=Path, default=None, help="Read the Codex prompt from a file.")
+    parser.add_argument(
+        "--stdin-file",
+        type=Path,
+        default=None,
+        help="Pipe a file to Codex stdin as additional context when --PROMPT is used.",
+    )
     parser.add_argument("--cd", required=True, type=Path, help="Workspace root for Codex.")
     parser.add_argument("--SESSION_ID", default="", help="Resume a previous session by thread ID.")
     parser.add_argument("--last", action="store_true", help="Resume the most recent session.")
+    parser.add_argument(
+        "--resume-all",
+        action="store_true",
+        help="With --SESSION_ID or --last, disable Codex's cwd filtering while selecting sessions.",
+    )
     parser.add_argument("--model", default="", help="Override the Codex model.")
     parser.add_argument(
         "--sandbox",
@@ -310,7 +375,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--search",
         action="store_true",
-        help="Compatibility flag only: current codex exec does not support live web search.",
+        help="Enable live web search by forwarding top-level `codex --search` before exec.",
+    )
+    parser.add_argument(
+        "-a",
+        "--ask-for-approval",
+        choices=APPROVAL_POLICIES,
+        default="",
+        help="Approval policy for model-generated commands.",
     )
     parser.add_argument("--oss", action="store_true", help="Use Codex open-source provider mode.")
     parser.add_argument("--local-provider", default="", help="Local OSS provider such as lmstudio or ollama.")
@@ -340,7 +412,38 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Include all JSONL events in output.",
     )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=0,
+        help="Terminate Codex after this many seconds. Default: no bridge timeout.",
+    )
     return parser.parse_args()
+
+
+def resolve_prompt_input(args: argparse.Namespace) -> Tuple[str, Optional[Path]]:
+    if args.PROMPT and args.prompt_file:
+        emit_json({"success": False, "error": "Use either `--PROMPT` or `--prompt-file`, not both."}, exit_code=2)
+    if args.prompt_file and args.stdin_file:
+        emit_json({"success": False, "error": "Use either `--prompt-file` or `--stdin-file`, not both."}, exit_code=2)
+    if not args.PROMPT and args.prompt_file is None:
+        emit_json({"success": False, "error": "Provide `--PROMPT` or `--prompt-file`."}, exit_code=2)
+
+    stdin_file: Optional[Path] = None
+    prompt_arg = args.PROMPT
+    if args.prompt_file is not None:
+        if not args.prompt_file.is_file():
+            emit_json({"success": False, "error": f"Prompt file not found: {args.prompt_file}"}, exit_code=2)
+        prompt_arg = "-"
+        stdin_file = args.prompt_file
+    elif args.stdin_file is not None:
+        if not args.stdin_file.is_file():
+            emit_json({"success": False, "error": f"Stdin context file not found: {args.stdin_file}"}, exit_code=2)
+        stdin_file = args.stdin_file
+
+    if os.name == "nt" and prompt_arg != "-":
+        prompt_arg = prompt_arg.replace("\n", "\\n").replace("\r", "\\r")
+    return prompt_arg, stdin_file
 
 
 def main() -> None:
@@ -349,19 +452,14 @@ def main() -> None:
 
     if args.SESSION_ID and args.last:
         emit_json({"success": False, "error": "Use either `--SESSION_ID` or `--last`, not both."}, exit_code=2)
-    if args.search:
-        emit_json(
-            {
-                "success": False,
-                "error": (
-                    "`--search` is not supported by current `codex exec` in codex-cli 0.137.0. "
-                    "Use interactive/direct `codex --search` workflows instead."
-                ),
-            },
-            exit_code=2,
-        )
+    if args.resume_all and not (args.SESSION_ID or args.last):
+        emit_json({"success": False, "error": "`--resume-all` requires `--SESSION_ID` or `--last`."}, exit_code=2)
+    if args.timeout < 0:
+        emit_json({"success": False, "error": "`--timeout` must be zero or a positive number of seconds."}, exit_code=2)
     if args.require_git_repo:
         args.skip_git_repo_check = False
+    if args.ask_for_approval == "on-failure":
+        warnings.append("`--ask-for-approval on-failure` is deprecated by Codex; prefer `on-request` or `never`.")
 
     cd: Path = args.cd
     error = preflight_check(cd)
@@ -374,7 +472,8 @@ def main() -> None:
     if args.bypass_hook_trust:
         warnings.append("Forwarding Codex dangerous hook-trust bypass flag.")
 
-    cmd = build_command(args, cd, sandbox)
+    prompt_arg, stdin_file = resolve_prompt_input(args)
+    cmd = build_command(args, cd, sandbox, prompt_arg)
     cwd = cd.absolute() if args.SESSION_ID or args.last else None
 
     all_messages: List[Dict[str, Any]] = []
@@ -384,12 +483,18 @@ def main() -> None:
         "errors": [],
         "session_id": None,
         "turn_completed": False,
+        "activity_counts": {},
+        "files_changed": 0,
+        "mcp_tools_ran": 0,
+        "plan_updates": 0,
+        "usage": {},
+        "web_searches": 0,
     }
     start_time = time.time()
     returncode = 1
 
     try:
-        generator = stream_command(cmd, cwd=cwd)
+        generator = stream_command(cmd, cwd=cwd, stdin_file=stdin_file, timeout_seconds=args.timeout)
         while True:
             try:
                 line = next(generator)
@@ -418,6 +523,8 @@ def main() -> None:
         state["errors"].append("Failed to get agent output from Codex.")
     if returncode != 0 and not state["turn_completed"]:
         state["errors"].append(f"Codex CLI exited with non-zero status: {returncode}")
+    if args.timeout and returncode == 124 and not state["turn_completed"]:
+        state["errors"].append(f"Codex may have timed out after {args.timeout:g} seconds.")
 
     result: Dict[str, Any] = {"success": success}
     if state["session_id"] is not None:
@@ -425,6 +532,13 @@ def main() -> None:
     result["agent_messages"] = state["agent_messages"]
     if state["commands_ran"]:
         result["commands_ran"] = state["commands_ran"]
+    for key in ("web_searches", "mcp_tools_ran", "files_changed", "plan_updates"):
+        if state[key]:
+            result[key] = state[key]
+    if state["usage"]:
+        result["usage"] = state["usage"]
+    if state["activity_counts"]:
+        result["activity_counts"] = state["activity_counts"]
     if warnings:
         result["warnings"] = warnings
     if not success:

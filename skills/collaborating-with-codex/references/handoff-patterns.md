@@ -15,6 +15,19 @@ python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
 
 Ask Codex for evidence, file paths, line numbers, and a compact recommendation. The primary agent verifies the cited files before acting.
 
+## File-backed handoff
+
+Use when a generated plan, review packet, or issue bundle is too large or too shell-sensitive for argv.
+
+```bash
+python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
+  --cd "/path/to/repo" \
+  --sandbox read-only \
+  --prompt-file /tmp/codex-handoff.md
+```
+
+Use `--stdin-file /tmp/context.txt` with `--PROMPT "..."` when another command has already produced logs, diffs, or JSON that should be passed as context instead of pasted into the prompt.
+
 ## Read-only patch proposal
 
 Use when you want implementation help but do not want Codex to edit files.

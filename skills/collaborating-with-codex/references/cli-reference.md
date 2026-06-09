@@ -23,6 +23,12 @@ Use this shape for bridge calls:
 codex exec --json -C /path/to/repo -s read-only -- "Prompt text"
 ```
 
+For live web search or explicit approval policy, place the global flags before `exec`:
+
+```bash
+codex --search -a never exec --json -C /path/to/repo -s read-only -- "Prompt text"
+```
+
 Supported options used by the bridge:
 
 | Flag | Use |
@@ -30,6 +36,8 @@ Supported options used by the bridge:
 | `--json` | Emit JSONL events to stdout |
 | `-C`, `--cd <DIR>` | Set the working root |
 | `-s`, `--sandbox <MODE>` | `read-only`, `workspace-write`, or `danger-full-access` |
+| `--search` | Top-level flag before `exec`; enables live web search |
+| `-a`, `--ask-for-approval <POLICY>` | Top-level flag before `exec`; `untrusted`, `on-request`, `never`, or deprecated `on-failure` |
 | `--add-dir <DIR>` | Add writable directories |
 | `-m`, `--model <MODEL>` | Override model |
 | `-p`, `--profile <PROFILE>` | Load a Codex config profile |
@@ -50,9 +58,9 @@ Supported options used by the bridge:
 | `--output-schema <FILE>` | Enforce JSON Schema response shape; direct CLI only |
 | `--color <MODE>` | `always`, `never`, or `auto` |
 
-`--full-auto`, `--search`, `--yolo`, and `--ask-for-approval` are not exposed by local `codex exec --help` for this target version. The bridge keeps `--full-auto` only as a deprecated compatibility alias and keeps `--search` only as a compatibility error with an explicit message.
+`--full-auto` is deprecated by Codex and should not be used in new bridge calls. The bridge keeps `--full-auto` only as a compatibility alias for `--sandbox workspace-write`. `--search` and `--ask-for-approval` are top-level Codex flags in local `codex-cli 0.137.0`; the bridge forwards them before `exec`.
 
-Top-level interactive `codex` and `codex fork` do expose `--search` and `--ask-for-approval`; do not use those flags with the bridge's `codex exec` path.
+Use `--search` only when live web evidence is needed. Treat remote content as untrusted and keep secrets out of prompts.
 
 ## `codex exec resume`
 
@@ -61,6 +69,7 @@ Use this shape for resumed sessions:
 ```bash
 codex exec --json -C /path/to/repo -s read-only resume <SESSION_ID> -- "Follow-up prompt"
 codex exec --json -C /path/to/repo -s read-only resume --last -- "Follow-up prompt"
+codex exec --json -C /path/to/repo -s read-only resume --all <SESSION_ID> -- "Follow-up prompt"
 ```
 
 Keep the `SESSION_ID` in the collaboration capsule so later turns can continue the same Codex thread.
@@ -120,6 +129,8 @@ The bridge relies on these event shapes:
 {"type":"item.completed","item":{"type":"command_execution","command":"...","exit_code":0}}
 {"type":"turn.completed","usage":{"input_tokens":123,"output_tokens":45}}
 ```
+
+Item types include agent messages, reasoning, command executions, file changes, MCP tool calls, web searches, and plan updates. The bridge returns `activity_counts` plus compact counters for commands, web searches, MCP activity, file activity, and plan updates when those events appear.
 
 If Codex changes event names, update `scripts/codex_bridge.py` and this reference together.
 

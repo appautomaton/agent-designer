@@ -32,6 +32,20 @@ After all tasks complete, synthesize:
 - gaps no agent covered
 - concrete next action for the primary agent
 
+## Codex-managed subagents
+
+Codex subagent workflows are explicit: ask Codex to spawn parallel agents only when the task truly splits into independent analysis or verification lanes.
+
+```bash
+python3 <skill_dir>/scripts/codex_bridge.py \
+  --cd "/project" \
+  --sandbox read-only \
+  --enable multi_agent \
+  --PROMPT "Use parallel subagents: one for security risks, one for test gaps, and one for maintainability. Wait for all agents, then summarize only final findings with file references."
+```
+
+Keep subagent work read-heavy unless each write lane has its own worktree. Ask for summaries, not raw logs, so the primary agent receives distilled results.
+
 ## Worktree isolation
 
 When multiple Codex instances need write access, use one git worktree per task.
