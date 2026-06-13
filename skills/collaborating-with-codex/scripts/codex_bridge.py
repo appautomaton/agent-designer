@@ -126,6 +126,8 @@ def build_command(args: argparse.Namespace, cd: Path, sandbox: str, prompt_arg: 
         cmd.extend(["-o", str(args.output_last_message)])
     for img in args.image:
         cmd.extend(["-i", img])
+    if args.network:
+        cmd.extend(["-c", "sandbox_workspace_write.network_access=true"])
     for cfg in args.config:
         cmd.extend(["-c", cfg])
     for feature in args.enable:
@@ -287,8 +289,12 @@ def summarize_event(
             elif "file" in item_type_lower and (
                 "change" in item_type_lower or "patch" in item_type_lower or "edit" in item_type_lower
             ):
-                state["files_changed"] += 1
-                status(f"File activity: {item_type}")
+                if str(item.get("status", "")).lower() == "failed":
+                    state["files_failed"] += 1
+                    status(f"File activity FAILED: {item_type}")
+                else:
+                    state["files_changed"] += 1
+                    status(f"File activity: {item_type}")
             elif "plan" in item_type_lower or item_type_lower == "todo_list":
                 state["plan_updates"] += 1
                 status("Plan updated")
@@ -303,6 +309,9 @@ def summarize_event(
             exit_code = item.get("exit_code")
             if exit_code is not None:
                 state["commands_ran"] += 1
+                state["command_exit_codes"].append(exit_code)
+                if exit_code != 0 or str(item.get("status", "")).lower() in ("failed", "declined"):
+                    state["commands_failed"] += 1
                 status(f"Ran: {command[:60]} (exit {exit_code})")
             elif command:
                 status(f"Running: {command[:60]}")
@@ -376,6 +385,12 @@ def parse_args() -> argparse.Namespace:
         "--search",
         action="store_true",
         help="Enable live web search by forwarding top-level `codex --search` before exec.",
+    )
+    parser.add_argument(
+        "--network",
+        action="store_true",
+        help="Allow outbound shell network inside the workspace-write sandbox "
+        "(forwards `-c sandbox_workspace_write.network_access=true`).",
     )
     parser.add_argument(
         "-a",
@@ -471,6 +486,11 @@ def main() -> None:
         warnings.append("Forwarding Codex dangerous bypass flag; this skips approvals and sandboxing.")
     if args.bypass_hook_trust:
         warnings.append("Forwarding Codex dangerous hook-trust bypass flag.")
+    if args.network and sandbox != "workspace-write":
+        warnings.append(
+            "`--network` only affects the workspace-write sandbox; "
+            f"it has no effect under `{sandbox}`."
+        )
 
     prompt_arg, stdin_file = resolve_prompt_input(args)
     cmd = build_command(args, cd, sandbox, prompt_arg)
@@ -480,11 +500,14 @@ def main() -> None:
     state: Dict[str, Any] = {
         "agent_messages": "",
         "commands_ran": 0,
+        "commands_failed": 0,
+        "command_exit_codes": [],
         "errors": [],
         "session_id": None,
         "turn_completed": False,
         "activity_counts": {},
         "files_changed": 0,
+        "files_failed": 0,
         "mcp_tools_ran": 0,
         "plan_updates": 0,
         "usage": {},
@@ -514,6 +537,22 @@ def main() -> None:
     except Exception as exc:
         emit_json({"success": False, "error": f"Failed to run Codex CLI: {exc}", "warnings": warnings}, exit_code=1)
 
+    exit_codes = state["command_exit_codes"]
+    if (
+        sandbox in ("read-only", "workspace-write")
+        and not args.bypass_sandbox
+        and exit_codes
+        and 182 in exit_codes
+        and all(code != 0 for code in exit_codes)
+    ):
+        warnings.append(
+            "Every sandboxed command failed and at least one exited with code 182. "
+            "Codex's sandbox is likely unsupported on this host (common under containers, "
+            "PRoot, and older WSL), so Codex could not actually run commands; treat "
+            "`agent_messages` as unverified. Probe with `codex sandbox -- true` and see "
+            "the skill's Safety model section for options."
+        )
+
     success = returncode == 0 or bool(state["turn_completed"])
     if state["session_id"] is None and not args.ephemeral:
         success = False
@@ -532,7 +571,7 @@ def main() -> None:
     result["agent_messages"] = state["agent_messages"]
     if state["commands_ran"]:
         result["commands_ran"] = state["commands_ran"]
-    for key in ("web_searches", "mcp_tools_ran", "files_changed", "plan_updates"):
+    for key in ("commands_failed", "web_searches", "mcp_tools_ran", "files_changed", "files_failed", "plan_updates"):
         if state[key]:
             result[key] = state[key]
     if state["usage"]:

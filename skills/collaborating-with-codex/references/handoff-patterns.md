@@ -53,6 +53,8 @@ python3 /path/to/skills/collaborating-with-codex/scripts/codex_bridge.py \
   --PROMPT "$PROMPT"
 ```
 
+Shell network stays blocked in workspace-write; add `--network` only when the task needs dependency installs or live integration tests, with user consent.
+
 After completion:
 
 ```bash

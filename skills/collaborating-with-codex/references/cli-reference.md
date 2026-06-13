@@ -1,6 +1,6 @@
 # Codex CLI Reference
 
-Verified for this skill against local `codex-cli 0.137.0`.
+Verified for this skill against local `codex-cli 0.139.0`.
 
 ## Commands
 
@@ -14,6 +14,9 @@ Verified for this skill against local `codex-cli 0.137.0`.
 | `codex fork [SESSION_ID]` | Fork an interactive session |
 | `codex mcp list/add/remove` | Manage Codex MCP servers |
 | `codex features list` | Inspect feature flags |
+| `codex sandbox -- <cmd>` | Run a command under the Codex sandbox; `codex sandbox -- true` probes sandbox health |
+| `codex doctor` | Diagnose install, auth, config, and sandbox status |
+| `codex debug models` | Render the model catalog (slugs and reasoning levels) as JSON |
 
 ## `codex exec`
 
@@ -61,6 +64,18 @@ Supported options used by the bridge:
 `--full-auto` is deprecated by Codex and should not be used in new bridge calls. The bridge keeps `--full-auto` only as a compatibility alias for `--sandbox workspace-write`. `--search` and `--ask-for-approval` are top-level Codex flags in local `codex-cli 0.137.0`; the bridge forwards them before `exec`.
 
 Use `--search` only when live web evidence is needed. Treat remote content as untrusted and keep secrets out of prompts.
+
+## Sandbox, network, and approvals
+
+Sandbox network defaults (verified against current developer docs):
+
+- Shell network is off by default in `read-only` and `workspace-write`. Enable it for workspace-write with `-c sandbox_workspace_write.network_access=true` (the bridge's `--network` flag).
+- Workspace-write writable roots: the `-C` root, `/tmp`, `$TMPDIR`, and `--add-dir` values. Tune with `sandbox_workspace_write.writable_roots`, `.exclude_slash_tmp`, and `.exclude_tmpdir_env_var`.
+- Web search is a separate path: config `web_search = "disabled" | "cached" | "live"` defaults to `cached` (OpenAI-maintained index, no live fetches). Top-level `--search` enables the live `web_search` tool with no per-call approval.
+
+`codex exec` cannot prompt: under `untrusted` or `on-request`, an action that would require approval fails and the failure goes back to the model. Use `-a never` (or omit) for bridge calls and grant authority only via sandbox mode, `--add-dir`, `--network`, and `--search`.
+
+Sandbox health: `codex sandbox -- true` should exit 0. On hosts that cannot enforce the sandbox (containers, PRoot, older WSL), every sandboxed command exits 182 (and `--enable use_legacy_landlock` panics with exit 101); read-only and workspace-write delegation silently produce no usable work. The bridge appends a warning when all commands fail and one exits 182.
 
 ## `codex exec resume`
 
@@ -126,23 +141,27 @@ The bridge relies on these event shapes:
 {"type":"thread.started","thread_id":"019..."}
 {"type":"turn.started"}
 {"type":"item.completed","item":{"type":"agent_message","text":"..."}}
-{"type":"item.completed","item":{"type":"command_execution","command":"...","exit_code":0}}
+{"type":"item.completed","item":{"type":"command_execution","command":"...","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"type":"file_change","status":"completed","changes":[{"path":"...","kind":"update"}]}}
 {"type":"turn.completed","usage":{"input_tokens":123,"output_tokens":45}}
 ```
 
-Item types include agent messages, reasoning, command executions, file changes, MCP tool calls, web searches, and todo/plan updates. The bridge returns `activity_counts` plus compact counters for commands, web searches, MCP activity, file activity, and todo/plan updates when those events appear.
+Item types include agent messages, reasoning, command executions, file changes, MCP tool calls, web searches, and todo/plan updates. `command_execution`, `file_change`, and `mcp_tool_call` items carry a `status` field (`completed`, `failed`, or `declined` for commands); `file_change` is emitted once per patch whether it succeeded or failed. The bridge returns `activity_counts` plus compact counters for commands (`commands_ran`, `commands_failed`), web searches, MCP activity, file activity (`files_changed`, `files_failed`), and todo/plan updates when those events appear.
 
 If Codex changes event names, update `scripts/codex_bridge.py` and this reference together.
 
 ## Config and feature examples
 
 ```bash
--c model="o3"
+-m gpt-5.4-mini
 -c 'model_reasoning_effort="medium"'
 -c 'model_reasoning_effort="xhigh"'
+-c 'sandbox_workspace_write.network_access=true'
 -c 'sandbox_permissions=["disk-full-read-access"]'
 --enable multi_agent
 --disable fast_mode
 ```
+
+`codex debug models` lists current model slugs and reasoning levels (`low`, `medium`, `high`, `xhigh`); at the time of verification: `gpt-5.5` (default, medium), `gpt-5.4`, `gpt-5.4-mini`, and `gpt-5.3-codex-spark` (default high).
 
 Current `multi_agent`, `fast_mode`, `shell_snapshot`, `skill_mcp_dependency_install`, `guardian_approval`, and `hooks` are stable according to local `codex features list`. Removed flags such as `steer`, `request_rule`, `remote_models`, `search_tool`, and `js_repl` should not be used.
