@@ -25,6 +25,16 @@ Bash tool call:
 
 Default to read-only delegation: `--permission-mode plan` (analyze, no edits/commands) or `--tools "Read,Glob,Grep"`. Grant writes only deliberately (`acceptEdits`/`auto`), preferably in an isolated worktree. Do not hand secrets, private keys, or production data to Claude. Full permission-mode set and the worktree pattern: [cli-reference.md](references/cli-reference.md), [handoff-patterns.md](references/handoff-patterns.md).
 
+## Permissions and network (headless)
+
+Headless `claude -p` cannot prompt: every gated action is denied on the spot and recorded in `permission_denials`, which the bridge surfaces (verified on 2.1.176). Authority is therefore decided entirely up front via `--permission-mode`, `--tools`, and `--allowed-tools` — get user consent before granting anything beyond read-only.
+
+Network is governed by tool policy, not an OS sandbox: `plan` mode denies `WebFetch`/`WebSearch` too (verified), while an allowed `Bash` can reach the network freely. Pick the posture per task:
+
+- No network, read-only: `--permission-mode plan`, or `--tools "Read,Glob,Grep"`.
+- Read-only plus targeted web research (verified): `--permission-mode dontAsk --tools "Read,Glob,Grep,WebFetch,WebSearch" --allowed-tools "WebFetch(domain:example.com)" --allowed-tools "WebSearch"`.
+- Reads outside `--cd` are gated as well — grant extra roots with `--add-dir`.
+
 ## When to use / not use
 
 Use for: second opinions on design, edge cases, or test gaps; proposing or reviewing a unified diff; multi-turn analysis while you implement. Skip for: trivial one-shot edits (do them directly); tasks needing authoritative cited facts (Claude may guess); anything touching secrets or prod data.
@@ -45,7 +55,7 @@ python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
 
 For large or shell-sensitive prompts, write the prompt to a file and pass `--prompt-file /tmp/prompt.md` (piped via stdin — no argv/quoting limits).
 
-**Returns** (stdout JSON): `{ "success": true, "SESSION_ID": "...", "agent_messages": "...", "model": "...", "subtype": "success", "total_cost_usd": 0.03, "usage": {...}, "num_turns": 1 }` — plus `tools_used` / `permission_denials` / `structured_output` / `is_error` when relevant. Progress streams to **stderr**; the bridge exits non-zero on failure.
+**Returns** (stdout JSON): `{ "success": true, "SESSION_ID": "...", "agent_messages": "...", "model": "...", "subtype": "success", "total_cost_usd": 0.03, "usage": {...}, "num_turns": 1 }` — plus `tools_used` / `tools_failed` / `tool_counts` / `permission_denials` / `structured_output` / `is_error` when relevant. Check `tools_failed` and `permission_denials` before trusting the answer: a denied tool means Claude reasoned without the evidence it asked for. Progress streams to **stderr**; the bridge exits non-zero on failure.
 
 ## Multi-turn sessions
 
@@ -69,7 +79,7 @@ Use `stream-json` or `json` output to capture `SESSION_ID`.
 
 ## Bridge flags
 
-**Core:** `--PROMPT` (or `--prompt-file`) · `--cd` (required) · `--model` (`sonnet`/`opus`/full id) · `--output-format` (`text`·`json`·`stream-json`, default `stream-json`).
+**Core:** `--PROMPT` (or `--prompt-file`) · `--cd` (required) · `--model` (alias `haiku`/`sonnet`/`opus`/`fable`, or full id) · `--output-format` (`text`·`json`·`stream-json`, default `stream-json`).
 
 **Sessions** (mutually exclusive): `--SESSION_ID` · `--session-id <uuid>` · `--continue`; plus `--fork-session`, `--no-session-persistence`.
 
@@ -83,7 +93,7 @@ Full semantics in [cli-reference.md](references/cli-reference.md). Set the host'
 
 ## Tune performance
 
-`--model sonnet` for routine work, `--model opus` for hard tasks; `--effort low→max` trades depth for speed/cost; `--max-budget-usd` caps spend. Omit `--model` to use the CLI default.
+`--model haiku` for quick checks, `sonnet` for routine work, `opus` or `fable` for hard tasks; `--effort low→max` trades depth for speed/cost; `--max-budget-usd` caps spend. Omit `--model` to use the CLI default.
 
 ## Prompting
 

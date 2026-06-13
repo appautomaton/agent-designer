@@ -15,6 +15,8 @@ python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
 
 Ask for evidence, file paths, line numbers, and a compact recommendation. Verify the cited files before acting.
 
+`plan` also denies `WebFetch`/`WebSearch`. If the analysis needs the web, use the scoped recipe in [cli-reference.md](cli-reference.md) (`dontAsk` + `--tools` + pre-approved `--allowed-tools`) instead of widening the permission mode. Check `tools_failed` / `permission_denials` in the result: a denied tool means Claude answered without the evidence it asked for.
+
 ## File-backed handoff
 
 When the prompt is large, generated, or shell-sensitive (backticks, `$VARS`), pass it via a file instead of argv:

@@ -6,7 +6,7 @@ Wraps the Claude Code CLI (`claude --print`) to provide a JSON interface,
 live stderr progress, multi-turn sessions via SESSION_ID, and structured
 result telemetry (termination reason, cost, tokens, turns).
 
-Verified against `claude` (Claude Code) CLI v2.1.169.
+Verified against `claude` (Claude Code) CLI v2.1.176.
 """
 
 from __future__ import annotations
@@ -227,7 +227,24 @@ def summarize_event(
             for block in content:
                 if isinstance(block, dict) and block.get("type") == "tool_use":
                     state["tools_used"] += 1
-                    status(f"Tool: {block.get('name', '?')}")
+                    name = str(block.get("name", "?"))
+                    state["tool_counts"][name] = state["tool_counts"].get(name, 0) + 1
+                    status(f"Tool: {name}")
+
+    elif etype == "user":
+        content = event.get("message", {}).get("content")
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "tool_result" and block.get("is_error"):
+                    state["tools_failed"] += 1
+                    body = block.get("content")
+                    text = body if isinstance(body, str) else ""
+                    if isinstance(body, list):
+                        text = " ".join(
+                            part.get("text", "") for part in body if isinstance(part, dict)
+                        )
+                    preview = text.strip().replace("\n", " ")[:80]
+                    status(f"Tool error: {preview}" if preview else "Tool error")
 
     elif etype == "rate_limit_event":
         info = event.get("rate_limit_info", {})
@@ -455,6 +472,8 @@ def main() -> None:
         "usage": {},
         "num_turns": None,
         "tools_used": 0,
+        "tools_failed": 0,
+        "tool_counts": {},
         "permission_denials": [],
         "terminal_reason": None,
         "stop_reason": None,
@@ -544,6 +563,10 @@ def main() -> None:
         result["num_turns"] = state["num_turns"]
     if state["tools_used"]:
         result["tools_used"] = state["tools_used"]
+    if state["tools_failed"]:
+        result["tools_failed"] = state["tools_failed"]
+    if state["tool_counts"]:
+        result["tool_counts"] = state["tool_counts"]
     if state["permission_denials"]:
         result["permission_denials"] = state["permission_denials"]
     if state["structured_output"] is not None:
