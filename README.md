@@ -13,7 +13,8 @@ Design structured, reusable skills that give your agents clear workflows, safe d
 | Skill | Purpose |
 |---|---|
 | `collaborating-with-claude` | Delegate to Claude Code CLI (review, diff, consultation) |
-| `collaborating-with-gemini` | Delegate to Gemini CLI (review, web search, image analysis) |
+| `collaborating-with-antigravity` | Delegate to Antigravity CLI `agy` (review, web search, image analysis) |
+| `collaborating-with-gemini` | _Deprecated 2026-06-18_ — Gemini CLI; use `collaborating-with-antigravity` |
 | `collaborating-with-codex` | Delegate to Codex CLI (implementation, diagnosis, review) |
 
 **Issue-driven development** — structure work into plans and trackable Issue CSVs:
@@ -36,7 +37,8 @@ Design structured, reusable skills that give your agents clear workflows, safe d
 ```
 skills/                          ← skill source (the real content)
   collaborating-with-claude/     ← bridge script + SKILL.md + references
-  collaborating-with-gemini/     ← bridge script + SKILL.md + references
+  collaborating-with-antigravity/ ← bridge script + SKILL.md + references (agy; replaces gemini)
+  collaborating-with-gemini/     ← deprecated 2026-06-18 (Gemini CLI sunset)
   collaborating-with-codex/      ← bridge script + SKILL.md + references + prompt recipes
   issue-driven-workflow/              ← plan/CSV workflow + templates + scripts
 .codex/skills/                   ← symlinks (Codex wiring)

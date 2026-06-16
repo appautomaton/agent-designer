@@ -1,11 +1,16 @@
 ---
 name: collaborating-with-gemini
-description: Delegate tasks to Gemini CLI for prototyping, debugging, code review, and web search. Supports multi-turn sessions via SESSION_ID.
+description: "[DEPRECATED 2026-06-18 — use collaborating-with-antigravity] Delegate tasks to Gemini CLI for prototyping, debugging, code review, and web search. Supports multi-turn sessions via SESSION_ID."
 metadata:
-  short-description: Delegate to Gemini CLI
+  short-description: "[DEPRECATED] Delegate to Gemini CLI"
 ---
 
 # Collaborating with Gemini
+
+> ⚠️ **DEPRECATED.** Google retires Gemini CLI on **2026-06-18**; after the cutoff its hosted auth
+> returns `410 Gone` and `gemini` stops working for AI Pro/Ultra and free Code Assist tiers. Use
+> **[`collaborating-with-antigravity`](../collaborating-with-antigravity/SKILL.md)** (the `agy` CLI),
+> Google's replacement. This skill is kept only for self-hosted / API-key Gemini CLI setups until cutover.
 
 Use Gemini CLI as a collaborator while Codex remains the primary implementer.
 
