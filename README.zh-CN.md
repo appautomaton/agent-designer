@@ -13,7 +13,8 @@ Language: 中文 | [English](README.md)
 | 技能 | 用途 |
 |---|---|
 | `collaborating-with-claude` | 委托给 Claude Code CLI（评审、差异对比、咨询） |
-| `collaborating-with-gemini` | 委托给 Gemini CLI（评审、网络搜索、图片分析） |
+| `collaborating-with-antigravity` | 委托给 Antigravity CLI `agy`（评审、网络搜索、图片分析） |
+| `collaborating-with-gemini` | _2026-06-18 起弃用_ — Gemini CLI；改用 `collaborating-with-antigravity` |
 | `collaborating-with-codex` | 委托给 Codex CLI（实现、诊断、评审） |
 
 **Issue 驱动开发** — 将工作结构化为计划和可追踪的 Issue CSV：
@@ -36,7 +37,8 @@ Language: 中文 | [English](README.md)
 ```
 skills/                          ← 技能源码（核心内容）
   collaborating-with-claude/     ← bridge 脚本 + SKILL.md + 参考文档
-  collaborating-with-gemini/     ← bridge 脚本 + SKILL.md + 参考文档
+  collaborating-with-antigravity/ ← bridge 脚本 + SKILL.md + 参考文档（agy；替代 gemini）
+  collaborating-with-gemini/     ← 2026-06-18 起弃用（Gemini CLI 停服）
   collaborating-with-codex/      ← bridge 脚本 + SKILL.md + 参考文档 + 提示词模板
   issue-driven-workflow/              ← 计划/CSV 工作流 + 模板 + 脚本
 .codex/skills/                   ← 符号链接（Codex 接入层）
