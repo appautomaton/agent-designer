@@ -17,17 +17,15 @@ JSON, and manages session continuity via `SESSION_ID`. **Always go through the b
 
 ## Why the bridge is mandatory
 
-Two `agy` v1.0.8 quirks make raw `agy -p` unusable from a script; the bridge handles both:
+Two `agy` v1.0.8 quirks make raw `agy -p` unusable from a script; the bridge fixes both:
 
-- **It hangs with no output when stdout is a pipe.** `agy -p foo > file` writes nothing and never
-  exits — even `--print-timeout` is ignored. The bridge runs `agy` under a pseudo-terminal (pty) so
-  its TTY check passes, and enforces its own wall-clock kill. (Upstream issue #76.)
-- **It never tells you the conversation ID.** There is no `--session-id`. The bridge recovers the ID
-  from `~/.gemini/antigravity-cli/cache/last_conversations.json` (workspace → UUID) and resumes via
-  `--conversation`. (Upstream issue #7.) Because `agy` rewrites that cache every run, the bridge takes
-  a file lock to serialize calls — **do not run bridge calls concurrently.**
+- **Hangs on a pipe.** `agy -p ... | …` writes nothing and never exits. The bridge runs `agy` under a
+  pseudo-terminal so its TTY check passes, and enforces its own wall-clock kill.
+- **Won't reveal the conversation ID** (no `--session-id`). The bridge recovers it from agy's cache,
+  returns it as `SESSION_ID`, and resumes via `--conversation`. It also serializes calls with a file
+  lock — **don't run bridge calls concurrently.**
 
-Details and the verified flag surface: [references/agy-cli.md](references/agy-cli.md).
+Mechanics, upstream issue numbers, and the verified flag surface: [references/agy-cli.md](references/agy-cli.md).
 
 ## Safety
 
@@ -89,20 +87,24 @@ python3 skills/collaborating-with-antigravity/scripts/agy_bridge.py \
   --cd "." --continue --PROMPT "What about edge cases?"
 ```
 
-`--SESSION_ID` and `--continue` are mutually exclusive. Sessions persist as SQLite under
-`~/.gemini/antigravity-cli/conversations/<id>.db`; the bridge surfaces the ID — the caller stores and reuses it.
+`--SESSION_ID` and `--continue` are mutually exclusive; `--continue` resumes agy's most-recent
+conversation *globally* (not per-`--cd`), so prefer `--SESSION_ID` for deterministic resume. Sessions
+persist as SQLite under `~/.gemini/antigravity-cli/conversations/<id>.db`. **Save turn 1's `SESSION_ID`** —
+agy can't pre-assign one and never reprints it, so an unsaved conversation can't be resumed.
 
 ## Bridge flags
 
 | Flag | Purpose | Default |
 |---|---|---|
 | `--PROMPT` / `--prompt-file` | Prompt text, or read it from a file (mutually exclusive) | — |
-| `--cd` | Workspace root (required) | — |
+| `--cd` | Workspace root (required unless `--list-models`) | — |
 | `--SESSION_ID` | Resume a conversation by ID (→ `agy --conversation`) | new conversation |
 | `--continue` | Continue the most recent conversation (→ `agy -c`) | off |
 | `--model` | Model from `agy models`, e.g. `"Gemini 3.5 Flash (Low)"`, `"Claude Sonnet 4.6 (Thinking)"` | CLI default |
 | `--sandbox` / `--no-sandbox` | agy terminal restrictions | **on** |
 | `--skip-permissions` | Auto-approve all tools (`--dangerously-skip-permissions`) | off |
+| `--list-models` | Print `agy models` as JSON and exit (no prompt/`--cd`) | — |
+| `--no-validate-model` | Skip validating `--model` against `agy models` | off |
 | `--add-dir` | Additional workspace dir (repeatable) | none |
 | `--print-timeout` | agy print wait, e.g. `5m`/`90s` (agy may ignore it) | `5m` |
 | `--timeout` | Bridge wall-clock kill, seconds (the real cap) | print-timeout + 120s |
@@ -113,9 +115,17 @@ Set the host's `timeout_ms` to **600000** (10 min) when invoking via a command r
 
 ## Models
 
-From `agy models`: `Gemini 3.5 Flash (Low|Medium|High)`, `Gemini 3.1 Pro (Low|High)`,
-`Claude Sonnet 4.6 (Thinking)`, `Claude Opus 4.6 (Thinking)`, `GPT-OSS 120B (Medium)`. Pass the exact
-human-readable string to `--model`. Use Flash (Low) for quick checks, Pro / Claude for hard tasks.
+**Probe the live list — don't hardcode it:**
+
+```bash
+python3 skills/collaborating-with-antigravity/scripts/agy_bridge.py --list-models
+# -> { "success": true, "models": ["Gemini 3.5 Flash (Low)", "Claude Sonnet 4.6 (Thinking)", ...] }
+```
+
+Pass the exact string to `--model`. agy itself does **not** validate `--model` — a misspelled or
+unknown name silently runs the default — so the bridge validates against `agy models` and errors on an
+unknown name (`--no-validate-model` to skip). Rough guide: Flash (Low) for quick checks, Gemini Pro or
+Claude for hard tasks. Full snapshot (v1.0.8) in [references/agy-cli.md](references/agy-cli.md).
 
 ## Prompting
 
@@ -134,7 +144,7 @@ agy reads files inside the workspace. Copy clipboard PNGs in first, then referen
 mkdir -p .codex_uploads && cp "${TMPDIR:-/tmp}"/codex-clipboard-*.png .codex_uploads/
 ```
 
-Delete screenshots when done.
+Don't add the upload dir to `.gitignore` (agy, like Gemini, may refuse to read ignored paths). Delete screenshots when done.
 
 ## Verification
 

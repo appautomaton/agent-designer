@@ -38,9 +38,14 @@ Subcommands: `changelog`, `help`, `install`, `models`, `plugin`/`plugins`, `upda
 
 ## Models (`agy models`)
 
+Probe the live set with `agy models` (or `agy_bridge.py --list-models`). Snapshot as of v1.0.8:
 `Gemini 3.5 Flash (Low)`, `Gemini 3.5 Flash (Medium)`, `Gemini 3.5 Flash (High)`,
 `Gemini 3.1 Pro (Low)`, `Gemini 3.1 Pro (High)`, `Claude Sonnet 4.6 (Thinking)`,
 `Claude Opus 4.6 (Thinking)`, `GPT-OSS 120B (Medium)`. Pass the exact string to `--model`.
+
+⚠️ agy does **not** validate `--model`: an unknown/misspelled name silently falls back to the default
+(no error), and agy never reports which model actually answered. The bridge guards this by validating
+`--model` against `agy models` and erroring on an unknown name.
 
 ## On-disk layout
 

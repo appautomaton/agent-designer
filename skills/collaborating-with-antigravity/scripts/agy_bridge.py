@@ -57,6 +57,21 @@ def find_executable(name: str) -> str:
     return found if found else name
 
 
+def list_models() -> Tuple[List[str], Optional[str]]:
+    """Return (models, error) from `agy models`. Pipe-safe, unlike `agy -p`."""
+    try:
+        proc = subprocess.run(
+            [find_executable("agy"), "models"],
+            stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return [], f"Failed to run `agy models`: {exc}"
+    if proc.returncode != 0:
+        return [], proc.stderr.strip() or f"`agy models` exited {proc.returncode}."
+    models = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    return (models, None) if models else ([], "`agy models` returned no models.")
+
+
 def parse_duration(text: str) -> Optional[float]:
     """Parse Go-style durations like '5m', '90s', '5m0s', or bare seconds."""
     text = text.strip().lower()
@@ -281,11 +296,13 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Antigravity CLI (agy) Bridge")
     parser.add_argument("--PROMPT", default="", help="Instruction to send to agy. Use this or --prompt-file.")
     parser.add_argument("--prompt-file", type=Path, default=None, help="Read the prompt from a file (avoids argv/shell-quoting limits).")
-    parser.add_argument("--cd", required=True, type=Path, help="Workspace root for agy.")
+    parser.add_argument("--cd", type=Path, default=None, help="Workspace root for agy (required unless --list-models).")
+    parser.add_argument("--list-models", action="store_true", help="Print models from `agy models` as JSON and exit (no prompt/cd needed).")
     session_group = parser.add_mutually_exclusive_group()
     session_group.add_argument("--SESSION_ID", default="", help="Resume a conversation by ID (maps to `agy --conversation`).")
     session_group.add_argument("--continue", dest="continue_session", action="store_true", help="Continue the most recent conversation (maps to `agy -c`).")
     parser.add_argument("--model", default="", help='Model name from `agy models`, e.g. "Gemini 3.5 Flash (Low)" or "Claude Sonnet 4.6 (Thinking)".')
+    parser.add_argument("--no-validate-model", action="store_true", help="Skip validating --model against `agy models` (agy does not validate; unknown names silently fall back to the default).")
     parser.add_argument("--sandbox", action=argparse.BooleanOptionalAction, default=True, help="Run agy with terminal restrictions (default: on). Use --no-sandbox to allow shell/tools.")
     parser.add_argument("--skip-permissions", action="store_true", help="Pass --dangerously-skip-permissions (auto-approve tools). Use only with explicit consent.")
     parser.add_argument("--add-dir", action="append", default=[], help="Add a directory to the workspace (repeatable).")
@@ -299,6 +316,17 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     warnings: List[str] = []
+
+    if args.list_models:
+        if shutil.which("agy") is None:
+            emit_json({"success": False, "error": "Antigravity CLI not found in PATH. Install it and ensure `agy` is available."}, exit_code=1)
+        models, err = list_models()
+        if err:
+            emit_json({"success": False, "error": err}, exit_code=1)
+        emit_json({"success": True, "models": models})
+
+    if args.cd is None:
+        emit_json({"success": False, "error": "`--cd` is required (omit it only with --list-models)."}, exit_code=2)
 
     if args.PROMPT and args.prompt_file is not None:
         emit_json({"success": False, "error": "Use either `--PROMPT` or `--prompt-file`, not both."}, exit_code=2)
@@ -326,6 +354,20 @@ def main() -> None:
 
     if args.skip_permissions:
         warnings.append("`--skip-permissions` auto-approves all agy tool actions without prompting.")
+
+    if args.model and not args.no_validate_model:
+        models, err = list_models()
+        if err:
+            warnings.append(f"Could not validate --model against `agy models` ({err}); proceeding.")
+        elif args.model not in models:
+            emit_json({
+                "success": False,
+                "error": (
+                    f"Model {args.model!r} is not listed by `agy models`; agy would silently fall "
+                    f"back to its default. Available: {models}. Use --no-validate-model to skip."
+                ),
+                "warnings": warnings,
+            }, exit_code=2)
 
     cmd = build_command(args, prompt)
     start_time = time.time()
