@@ -172,7 +172,7 @@ Use `codex apply <TASK_ID>` only after reviewing a Codex-produced diff. Use `cod
 
 ## Images: input and generation
 
-Attach reference images with `--image` (repeatable). Codex also **generates** images natively via gpt-image-2 — ask in natural language or put `$imagegen` in the prompt (inside a single-quoted heredoc, or the shell eats the `$`). Verified headless through the bridge: a `--sandbox workspace-write` run saved a correct 256×256 PNG to the workspace root. Generation is a server-side tool (no shell network needed), but saving the asset requires write access — use a worktree or scratch dir. Good for icons, banners, diagrams, and placeholder art; gpt-image-2 renders coherent in-image text. Image turns consume Codex usage limits ~3–5× faster than text turns (API pricing applies instead when `OPENAI_API_KEY` is set).
+Attach reference images with `--image` (repeatable). Codex also **generates** images natively via gpt-image-2 — a frontier image model with coherent in-image text, worth real asset work (icons, banners, diagrams, mockups), not just placeholders. Ask in natural language or put `$imagegen` in the prompt (inside a single-quoted heredoc, or the shell eats the `$`). Verified headless through the bridge: a `--sandbox workspace-write` run saved a correct 256×256 PNG to the workspace root. Generation is a server-side tool (no shell network needed), but saving the asset requires write access — use a worktree or scratch dir. Image turns consume Codex usage limits ~3–5× faster than text turns (API pricing applies instead when `OPENAI_API_KEY` is set). **How to brief it — prompt structure, exact-text recipe, sizes/quality, edit iteration:** [imagegen.md](references/imagegen.md).
 
 ## Tune performance
 
@@ -227,6 +227,7 @@ Keep this block updated during multi-turn handoffs:
 - [Prompt patterns](references/patterns.md) - delegation scenarios and prompt examples
 - [Prompt recipes](references/prompt-recipes.md) - diagnosis, fix, review, and research templates
 - [Prompt anti-patterns](references/prompt-antipatterns.md) - common mistakes
+- [Image generation](references/imagegen.md) - briefing gpt-image-2: prompt structure, exact text, parameters, iteration
 - [Shell quoting](references/shell-quoting.md) - safe heredoc prompts
 - [CLI reference](references/cli-reference.md) - Codex CLI flags verified for this skill
 - [Handoff patterns](references/handoff-patterns.md) - read-only, worktree, and synthesis workflows
