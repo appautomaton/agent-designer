@@ -1,7 +1,9 @@
 # Antigravity CLI (`agy`) reference
 
-**Verification status:** built and tested against `agy` v1.0.8 on Linux (2026-06-16). The interface is
-changing fast; re-check `agy --help` / `agy models` if behavior drifts.
+**Verification status:** verified against `agy` v1.0.16 on macOS (2026-07-06). The interface is
+changing fast; re-check `agy --help` / `agy models` if behavior drifts. Project scoping
+(`--project`/`--new-project`) drops a `.antigravitycli/<project-uuid>.json` symlink in the
+workspace — gitignore it.
 
 ## Install & auth
 
@@ -11,10 +13,10 @@ agy --version                                                  # non-interactive
 ```
 
 Auth is **Google OAuth, no API key**. On first run `agy` opens a browser (or, over SSH, prints a URL +
-one-time code) and caches a token at `~/.gemini/antigravity-cli/antigravity-oauth-token`. The bridge
-warns if that token is missing.
+one-time code) and caches credentials under `~/.gemini/antigravity-cli/` (the exact artifact varies by
+version). The bridge warns if agy has never run on the host.
 
-## Verified flag surface (v1.0.8 `agy --help`)
+## Verified flag surface (`agy --help`)
 
 ```
 --add-dir                       Add a directory to the workspace (repeatable)
@@ -27,6 +29,8 @@ warns if that token is missing.
 -p, --print, --prompt <text>    Run a single prompt non-interactively
 --print-timeout <dur>           Print-mode wait (default 5m0s)
 --sandbox                       Run with terminal restrictions enabled
+--project <id>                  Project ID for the session
+--new-project                   Create a new project for this session
 ```
 
 Subcommands: `changelog`, `help`, `install`, `models`, `plugin`/`plugins`, `update`.
@@ -38,7 +42,7 @@ Subcommands: `changelog`, `help`, `install`, `models`, `plugin`/`plugins`, `upda
 
 ## Models (`agy models`)
 
-Probe the live set with `agy models` (or `agy_bridge.py --list-models`). Snapshot as of v1.0.8:
+Probe the live set with `agy models` (or `agy_bridge.py --list-models`). Snapshot:
 `Gemini 3.5 Flash (Low)`, `Gemini 3.5 Flash (Medium)`, `Gemini 3.5 Flash (High)`,
 `Gemini 3.1 Pro (Low)`, `Gemini 3.1 Pro (High)`, `Claude Sonnet 4.6 (Thinking)`,
 `Claude Opus 4.6 (Thinking)`, `GPT-OSS 120B (Medium)`. Pass the exact string to `--model`.
@@ -51,24 +55,25 @@ Probe the live set with `agy models` (or `agy_bridge.py --list-models`). Snapsho
 
 ```
 ~/.gemini/antigravity-cli/
-├── antigravity-oauth-token                 # auth
 ├── cache/last_conversations.json           # { "<workspace-abspath>": "<conversation-uuid>" }
-└── conversations/<conversation-uuid>.db    # SQLite transcript (tables: steps, gen_metadata, …)
+├── conversations/<conversation-uuid>.db    # SQLite transcript (tables: steps, gen_metadata, …)
+└── …                                       # auth credentials, logs, settings (layout varies by version)
 ```
 
 The bridge reads `last_conversations.json` keyed by `--cd` (resolved abspath) to recover `SESSION_ID`,
 falling back to the newest `*.db` modified since the run began. The `.db` schema is undocumented and
 version-volatile, so the bridge does **not** parse it for the answer — it relies on pty-captured stdout.
 
-## Known bugs the bridge works around
+## Quirks the bridge works around
 
-1. **Non-TTY stdout hang (issue #76).** `agy -p` writes nothing and hangs indefinitely when stdout is
-   not a terminal (pipe/redirect/subprocess); `--print-timeout` is ignored. The bridge allocates a pty
-   (`pty.openpty()`), passes the slave as agy's stdout/stderr, reads the master, and enforces a
-   wall-clock kill (`--timeout`, default `print-timeout + 120s`). Confirmed locally: a piped run hung
-   >11 min with 0 bytes; the same prompt under a pty returned in ~3s.
-2. **Conversation ID not surfaced (issue #7).** `agy -p` never prints the conversation ID and there is
+1. **Conversation ID not surfaced (issue #7).** `agy -p` never prints the conversation ID and there is
    no `--session-id`. The bridge recovers it from `last_conversations.json` after the run.
+2. **No structured output.** The bridge captures agy's plain text, strips ANSI/spinner sequences, and
+   returns JSON with a wall-clock kill (`--timeout`, default `print-timeout + 120s`) as the real cap.
+
+The bridge runs agy under a pty (`pty.openpty()`): the non-TTY stdout hang (issue #76) is fixed
+upstream — a piped `agy -p` now returns normally (verified) — and the pty is kept as cheap insurance
+against TTY-dependent regressions.
 
 ## Concurrency
 
@@ -77,7 +82,9 @@ recovery and could attach a resume to the wrong conversation. The bridge seriali
 advisory `flock` on `~/.gemini/antigravity-cli/cache/.agy_bridge.lock`. **Do not run bridge calls
 concurrently** for independent threads; run them one at a time.
 
-## Migrating from `collaborating-with-gemini`
+## Migrating from Gemini CLI workflows
+
+The Gemini CLI (and this repo's former `collaborating-with-gemini` skill, removed 2026-07-06) map to `agy` as follows:
 
 | Gemini bridge | Antigravity bridge |
 |---|---|

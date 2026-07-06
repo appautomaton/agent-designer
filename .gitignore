@@ -28,3 +28,6 @@ htmlcov/
 *.log
 tmp/
 .claude_home/
+
+# Antigravity CLI project wiring (created by agy in the workspace)
+.antigravitycli/

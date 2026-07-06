@@ -2,7 +2,7 @@ Language: 中文 | [English](README.md)
 
 # Agent Designer
 
-面向 AI 编程 Agent 的可移植技能工作区 — 支持 Codex、Claude Code 和 Gemini。
+面向 AI 编程 Agent 的可移植技能工作区 — 支持 Claude Code、Codex、Antigravity 和 Grok。
 
 设计结构化、可复用的技能，让你的 Agent 拥有清晰的工作流程、安全的默认行为和多轮协作能力。克隆本仓库作为任何项目的起点，让 Agent 有章可循地工作，而不是自由发挥。
 
@@ -14,8 +14,8 @@ Language: 中文 | [English](README.md)
 |---|---|
 | `collaborating-with-claude` | 委托给 Claude Code CLI（评审、差异对比、咨询） |
 | `collaborating-with-antigravity` | 委托给 Antigravity CLI `agy`（评审、网络搜索、图片分析） |
-| `collaborating-with-gemini` | _2026-06-18 起弃用_ — Gemini CLI；改用 `collaborating-with-antigravity` |
 | `collaborating-with-codex` | 委托给 Codex CLI（实现、诊断、评审） |
+| `collaborating-with-grok` | 委托给 Grok CLI `grok-build`（评审、诊断、实时 Web/X 搜索） |
 
 **Issue 驱动开发** — 将工作结构化为计划和可追踪的 Issue CSV：
 
@@ -37,9 +37,9 @@ Language: 中文 | [English](README.md)
 ```
 skills/                          ← 技能源码（核心内容）
   collaborating-with-claude/     ← bridge 脚本 + SKILL.md + 参考文档
-  collaborating-with-antigravity/ ← bridge 脚本 + SKILL.md + 参考文档（agy；替代 gemini）
-  collaborating-with-gemini/     ← 2026-06-18 起弃用（Gemini CLI 停服）
+  collaborating-with-antigravity/ ← bridge 脚本 + SKILL.md + 参考文档（agy；接替已停服的 Gemini CLI）
   collaborating-with-codex/      ← bridge 脚本 + SKILL.md + 参考文档 + 提示词模板
+  collaborating-with-grok/       ← bridge 脚本 + SKILL.md + 参考文档（grok-build；实时 Web/X 搜索）
   issue-driven-workflow/              ← 计划/CSV 工作流 + 模板 + 脚本
 .codex/skills/                   ← 符号链接（Codex 接入层）
 AGENTS.md                        ← 项目专属规则
@@ -58,6 +58,7 @@ AGENTS.issues.template.md        ← Issue 驱动工作流（叠加到 AGENTS.md
 
 - 本仓库以工作流为主 — 大多数变更为文本修改，而非代码。
 - Bridge 脚本封装 CLI 工具，返回结构化 JSON 并支持会话连续性。
+- `.claude/settings.json` 为所有 bridge 脚本预置了 `permissions.allow` 规则，避免宿主 Agent 在自动审批模式下把委托调用悄悄判为"高风险"而拒绝。详见各技能的 "Host-side approval" 章节。
 - 技能可在 Codex 和 Claude Code 之间移植，仅需少量适配。
 - 如需直接运行 bridge 脚本，优先使用 `python3`。
 

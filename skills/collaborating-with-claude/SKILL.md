@@ -27,13 +27,21 @@ Default to read-only delegation: `--permission-mode plan` (analyze, no edits/com
 
 ## Permissions and network (headless)
 
-Headless `claude -p` cannot prompt: every gated action is denied on the spot and recorded in `permission_denials`, which the bridge surfaces (verified on 2.1.176). Authority is therefore decided entirely up front via `--permission-mode`, `--tools`, and `--allowed-tools` — get user consent before granting anything beyond read-only.
+Headless `claude -p` cannot prompt: every gated action is denied on the spot and recorded in `permission_denials`, which the bridge surfaces (verified). Authority is therefore decided entirely up front via `--permission-mode`, `--tools`, and `--allowed-tools` — get user consent before granting anything beyond read-only.
 
 Network is governed by tool policy, not an OS sandbox: `plan` mode denies `WebFetch`/`WebSearch` too (verified), while an allowed `Bash` can reach the network freely. Pick the posture per task:
 
 - No network, read-only: `--permission-mode plan`, or `--tools "Read,Glob,Grep"`.
 - Read-only plus targeted web research (verified): `--permission-mode dontAsk --tools "Read,Glob,Grep,WebFetch,WebSearch" --allowed-tools "WebFetch(domain:example.com)" --allowed-tools "WebSearch"`.
 - Reads outside `--cd` are gated as well — grant extra roots with `--add-dir`.
+
+## Host-side approval (the bridge call itself)
+
+Everything above governs the child Claude. The **host** agent's own permission layer gates the `python3 … claude_bridge.py` Bash call first — and under classifier-gated auto-approval (Claude Code `auto`/`dontAsk`, Codex non-interactive runs), a long-running script that spawns another agent over the codebase pattern-matches "high-risk" and can be **denied silently**: the delegation never starts. A host permission error instead of bridge JSON means the host blocked the bridge, not that Claude failed.
+
+- **Pre-authorize; don't rely on the classifier.** Claude Code host: add `"Bash(python3 skills/collaborating-with-claude/scripts/claude_bridge.py *)"` to `permissions.allow` in `.claude/settings.json` (this repo ships rules for all bridges). Rules are literal prefix matches — they must match how the command is actually invoked. Grok host: same idea via `--allow "Bash(python3 skills/…)"`.
+- **Codex host: the sandbox is the second gate.** Both `read-only` and `workspace-write` block shell network, so the child CLI can't reach its API at all. Run the bridge call through an approved escalation, or knowingly grant network for that call.
+- **Never degrade silently.** If the host denies the bridge call, report it and propose the allowlist fix — don't substitute your own answer for the independent second opinion that was requested.
 
 ## When to use / not use
 
@@ -83,7 +91,7 @@ Use `stream-json` or `json` output to capture `SESSION_ID`.
 
 **Sessions** (mutually exclusive): `--SESSION_ID` · `--session-id <uuid>` · `--continue`; plus `--fork-session`, `--no-session-persistence`.
 
-**Permissions:** `--permission-mode` (`default`·`plan`·`acceptEdits`·`auto`·`dontAsk`·`bypassPermissions`) · `--tools` · `--allowed-tools` · `--disallowed-tools`. Footgun: the space in `Bash(git diff *)` is load-bearing.
+**Permissions:** `--permission-mode` (`plan`·`manual`·`acceptEdits`·`auto`·`dontAsk`·`bypassPermissions`) · `--tools` · `--allowed-tools` · `--disallowed-tools`. Footgun: the space in `Bash(git diff *)` is load-bearing.
 
 **Reproducibility & cost:** `--bare` / `--safe-mode` (skip customizations; `--bare` needs `ANTHROPIC_API_KEY`) · `--effort` (`low`→`max`) · `--max-budget-usd` · `--max-turns` · `--timeout <seconds>`.
 

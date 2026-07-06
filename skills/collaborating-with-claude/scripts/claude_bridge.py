@@ -6,7 +6,7 @@ Wraps the Claude Code CLI (`claude --print`) to provide a JSON interface,
 live stderr progress, multi-turn sessions via SESSION_ID, and structured
 result telemetry (termination reason, cost, tokens, turns).
 
-Verified against `claude` (Claude Code) CLI v2.1.176.
+Verified against `claude` (Claude Code) CLI v2.1.201.
 """
 
 from __future__ import annotations
@@ -404,7 +404,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--allowed-tools", action="append", default=[], help="Tools to allow without prompting.")
     parser.add_argument("--disallowed-tools", action="append", default=[], help="Tools to remove from context.")
     parser.add_argument("--tools", default="", help='Built-in tools to enable: "" (none), "default", or e.g. "Read,Glob,Grep".')
-    parser.add_argument("--permission-mode", default="", help="Permission mode: default/plan/acceptEdits/auto/dontAsk/bypassPermissions.")
+    parser.add_argument("--permission-mode", default="", help="Permission mode: plan/manual/acceptEdits/auto/dontAsk/bypassPermissions (CLI >=2.1.201 names the old 'default' mode 'manual'; both parse).")
     parser.add_argument("--permission-prompt-tool", default="", help="MCP tool to handle permission prompts.")
     parser.add_argument("--mcp-config", action="append", default=[], help="Load MCP servers from JSON files or strings.")
     parser.add_argument("--strict-mcp-config", action="store_true", help="Only use MCP servers from --mcp-config.")

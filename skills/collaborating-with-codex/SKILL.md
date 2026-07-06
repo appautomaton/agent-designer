@@ -44,6 +44,14 @@ Codex has two separate network paths:
 - Web search: without `--search`, Codex's `web_search` tool answers from an OpenAI-maintained cached index and fetches no live pages. `--search` switches it to live search with no per-call approval, so passing the flag is itself the approval.
 - Shell network (`curl`, `pip`, `npm`): blocked in both `read-only` and `workspace-write`. Grant it only when the task needs it (dependency installs, integration tests) via `--sandbox workspace-write --network`, preferably in an isolated worktree.
 
+## Host-side approval (the bridge call itself)
+
+Everything above governs the child Codex. The **host** agent's own permission layer gates the `python3 … codex_bridge.py` Bash call first — and under classifier-gated auto-approval (Claude Code `auto`/`dontAsk`, Codex non-interactive runs), a long-running script that spawns another agent over the codebase pattern-matches "high-risk" and can be **denied silently**: the delegation never starts. A host permission error instead of bridge JSON means the host blocked the bridge, not that Codex failed.
+
+- **Pre-authorize; don't rely on the classifier.** Claude Code host: add `"Bash(python3 skills/collaborating-with-codex/scripts/codex_bridge.py *)"` to `permissions.allow` in `.claude/settings.json` (this repo ships rules for all bridges). Rules are literal prefix matches — they must match how the command is actually invoked.
+- **Codex host: the sandbox is the second gate.** The child `codex` CLI needs API network, which the host sandbox blocks in `read-only` and `workspace-write`. Run the bridge call through an approved escalation, or knowingly grant network for that call.
+- **Never degrade silently.** If the host denies the bridge call, report it and propose the allowlist fix — don't substitute your own answer for the independent second opinion that was requested.
+
 ## Quick start
 
 Backticks in prompts trigger shell command substitution. Use a single-quoted heredoc; see `references/shell-quoting.md`.

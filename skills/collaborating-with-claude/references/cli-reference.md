@@ -1,6 +1,6 @@
 # Claude Code CLI Reference
 
-Verified against `claude` (Claude Code) CLI **v2.1.176**. The bridge wraps `claude --print` (headless mode).
+Verified against `claude` (Claude Code) CLI **v2.1.201** (2026-07-06). The bridge wraps `claude --print` (headless mode).
 
 ## Invocation shape
 
@@ -33,7 +33,7 @@ The prompt is the positional argument, or piped via stdin when the bridge's `--p
 |---|---|
 | `plan` | Read/analyze only; no edits, commands, or network tools (`WebFetch`/`WebSearch` are denied too — verified). |
 | `dontAsk` | Denies anything not in `permissions.allow` rules / `--allowedTools`. |
-| `default` | Headless (`-p`) cannot prompt: each gated action is denied and recorded in `permission_denials`. |
+| `manual` | Headless (`-p`) cannot prompt: each gated action is denied and recorded in `permission_denials`. |
 | `acceptEdits` | Auto-approves file edits. |
 | `auto` | Classifier-gated auto-approval; aborts under `-p` if it keeps blocking. |
 | `bypassPermissions` | Bypass all checks. Sandboxed/trusted dirs only. (`--dangerously-skip-permissions` is the equivalent raw CLI flag.) |

@@ -1,29 +1,27 @@
 ---
 name: collaborating-with-antigravity
-description: Delegate tasks to Google's Antigravity CLI (agy) for prototyping, debugging, code review, and research. Supports multi-turn sessions via SESSION_ID. Replaces the retiring Gemini CLI.
+description: Delegate tasks to Google's Antigravity CLI (agy) for prototyping, debugging, code review, and research. Supports multi-turn sessions via SESSION_ID. Successor to the retired Gemini CLI.
 metadata:
   short-description: Delegate to Antigravity CLI (agy)
 ---
 
 # Collaborating with Antigravity (agy)
 
-Use the Antigravity CLI (`agy`) as a collaborator while Codex remains the primary implementer.
-Antigravity CLI is Google's replacement for the **retiring Gemini CLI** (hosted auth shuts off
-2026-06-18). If you used `collaborating-with-gemini`, switch to this skill.
+Use the Antigravity CLI (`agy`) as an independent collaborator while the calling agent stays
+responsible for verification, synthesis, and final user-facing decisions. Antigravity CLI is
+Google's replacement for the **retired Gemini CLI** (hosted auth shut off 2026-06-18).
 
 The bridge script (`scripts/agy_bridge.py`) wraps `agy -p` (headless print mode), returns structured
-JSON, and manages session continuity via `SESSION_ID`. **Always go through the bridge** — invoking
-`agy -p` directly is unreliable (see below).
+JSON, and manages session continuity via `SESSION_ID`. **Always go through the bridge** — raw `agy -p`
+surfaces no conversation ID and no structured output (see below).
 
 ## Why the bridge is mandatory
 
-Two `agy` v1.0.8 quirks make raw `agy -p` unusable from a script; the bridge fixes both:
-
-- **Hangs on a pipe.** `agy -p ... | …` writes nothing and never exits. The bridge runs `agy` under a
-  pseudo-terminal so its TTY check passes, and enforces its own wall-clock kill.
-- **Won't reveal the conversation ID** (no `--session-id`). The bridge recovers it from agy's cache,
-  returns it as `SESSION_ID`, and resumes via `--conversation`. It also serializes calls with a file
-  lock — **don't run bridge calls concurrently.**
+- **agy won't reveal the conversation ID** (no `--session-id`, never printed). The bridge recovers it
+  from agy's cache, returns it as `SESSION_ID`, and resumes via `--conversation`. It also serializes
+  calls with a file lock — **don't run bridge calls concurrently.**
+- **agy has no structured output.** The bridge shapes plain text into JSON, streams live progress to
+  stderr, and enforces its own wall-clock kill as the real timeout.
 
 Mechanics, upstream issue numbers, and the verified flag surface: [references/agy-cli.md](references/agy-cli.md).
 
@@ -39,6 +37,14 @@ Mechanics, upstream issue numbers, and the verified flag surface: [references/ag
   use it with explicit user consent, ideally in an isolated worktree.
 - Never hand `agy` secrets, private keys, or production data.
 
+## Host-side approval (the bridge call itself)
+
+Everything above governs the child agy. The **host** agent's own permission layer gates the `python3 … agy_bridge.py` Bash call first — and under classifier-gated auto-approval (Claude Code `auto`/`dontAsk`, Codex non-interactive runs), a long-running script that spawns another agent over the codebase pattern-matches "high-risk" and can be **denied silently**: the delegation never starts. A host permission error instead of bridge JSON means the host blocked the bridge, not that agy failed.
+
+- **Pre-authorize; don't rely on the classifier.** Claude Code host: add `"Bash(python3 skills/collaborating-with-antigravity/scripts/agy_bridge.py *)"` to `permissions.allow` in `.claude/settings.json` (this repo ships rules for all bridges). Rules are literal prefix matches — they must match how the command is actually invoked.
+- **Codex host: the sandbox is the second gate.** The child `agy` CLI needs network for Google auth and inference, which the host sandbox blocks in `read-only` and `workspace-write`. Run the bridge call through an approved escalation, or knowingly grant network for that call.
+- **Never degrade silently.** If the host denies the bridge call, report it and propose the allowlist fix — don't substitute your own answer for the independent second opinion that was requested.
+
 ## When to use
 - Second opinion on design tradeoffs, edge cases, or test gaps.
 - Web search / research (Antigravity has built-in grounding).
@@ -46,8 +52,8 @@ Mechanics, upstream issue numbers, and the verified flag surface: [references/ag
 - Screenshot / image analysis.
 
 ## When not to use
-- Trivial one-shot tasks — do them in Codex directly.
-- Tasks requiring file edits — Codex edits, agy advises.
+- Trivial one-shot tasks — do them directly.
+- Tasks requiring file edits — the calling agent edits, agy advises.
 - Anything involving secrets, private keys, or prod data.
 
 ## Quick start
@@ -66,8 +72,8 @@ python3 skills/collaborating-with-antigravity/scripts/agy_bridge.py \
 ```
 
 **Returns** (stdout JSON): `{ "success": true, "SESSION_ID": "...", "agent_messages": "...", "model": "...", "warnings": [...] }`.
-Live progress streams to **stderr**; the bridge exits non-zero on failure. In Codex, run non-trivial
-calls in the background and watch the stderr progress.
+Live progress streams to **stderr**; the bridge exits non-zero on failure. Run non-trivial calls in
+the host's background-command mode and watch the stderr progress.
 
 ## Multi-turn sessions
 
@@ -125,7 +131,7 @@ python3 skills/collaborating-with-antigravity/scripts/agy_bridge.py --list-model
 Pass the exact string to `--model`. agy itself does **not** validate `--model` — a misspelled or
 unknown name silently runs the default — so the bridge validates against `agy models` and errors on an
 unknown name (`--no-validate-model` to skip). Rough guide: Flash (Low) for quick checks, Gemini Pro or
-Claude for hard tasks. Full snapshot (v1.0.8) in [references/agy-cli.md](references/agy-cli.md).
+Claude for hard tasks. Full snapshot in [references/agy-cli.md](references/agy-cli.md).
 
 ## Prompting
 
@@ -138,7 +144,7 @@ Use [assets/prompt-template.md](assets/prompt-template.md) for structured starte
 
 ### Screenshots
 
-agy reads files inside the workspace. Copy clipboard PNGs in first, then reference the path:
+agy reads files inside the workspace. Copy screenshots in first, then reference the path (example for a Codex host — adapt the clipboard source path to your host):
 
 ```bash
 mkdir -p .codex_uploads && cp "${TMPDIR:-/tmp}"/codex-clipboard-*.png .codex_uploads/
@@ -163,6 +169,6 @@ Keep this block updated while collaborating:
 ```
 
 ## References
-- [references/agy-cli.md](references/agy-cli.md) — verified `agy` v1.0.8 flags, models, file layout, known bugs
+- [references/agy-cli.md](references/agy-cli.md) — verified `agy` flags, models, file layout, quirks
 - [assets/prompt-template.md](assets/prompt-template.md) — structured prompt patterns
 - [references/shell-quoting.md](references/shell-quoting.md) — heredoc quoting for backticks

@@ -5,22 +5,22 @@ Antigravity CLI Bridge Script.
 Wraps the Antigravity CLI (`agy --print`) to provide a JSON interface, live
 stderr progress, and multi-turn continuity via SESSION_ID.
 
-Antigravity CLI is Google's replacement for the (retiring) Gemini CLI. Two
-quirks of `agy` v1.0.8 shape this bridge and are worked around here:
+Antigravity CLI is Google's replacement for the retired Gemini CLI. Quirks of
+`agy` shape this bridge and are worked around here:
 
-  1. Non-TTY stdout hang. `agy -p` writes nothing and hangs indefinitely when
-     stdout is a pipe (even `--print-timeout` is ignored). We therefore run it
-     under a pseudo-terminal (pty) so its TTY check passes, and enforce our own
-     wall-clock kill. (Upstream: antigravity-cli issue #76.)
-  2. No surfaced conversation ID. `agy -p` never prints the conversation ID and
+  1. No surfaced conversation ID. `agy -p` never prints the conversation ID and
      has no `--session-id`. We recover it from
      `~/.gemini/antigravity-cli/cache/last_conversations.json`, which maps the
      workspace abspath -> conversation UUID, and resume via `--conversation`.
      (Upstream: antigravity-cli issue #7.)
+  2. No structured output. We capture agy's plain text under a pseudo-terminal
+     (pty), strip ANSI, return JSON, and enforce our own wall-clock kill. (The
+     historical non-TTY stdout hang, issue #76, is fixed upstream; the pty is
+     kept as cheap insurance.)
 
 Because `agy` rewrites that cache on every run, concurrent runs would race ID
 recovery; the bridge serializes with an advisory file lock. Verified against
-`agy` (Antigravity CLI) v1.0.8 on Linux.
+`agy` (Antigravity CLI) v1.0.16 on macOS.
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[=>]|[\x
 
 CACHE_REL = ".gemini/antigravity-cli/cache/last_conversations.json"
 CONV_DIR_REL = ".gemini/antigravity-cli/conversations"
-OAUTH_TOKEN_REL = ".gemini/antigravity-cli/antigravity-oauth-token"
+AGY_HOME_REL = ".gemini/antigravity-cli"
 
 
 def emit_json(result: Dict[str, Any], exit_code: int = 0) -> None:
@@ -103,9 +103,9 @@ def preflight_check(cd: Path, warnings: List[str]) -> Optional[str]:
         return f"Workspace root `{cd.absolute().as_posix()}` does not exist."
     if not cd.is_dir():
         return f"Workspace root `{cd.absolute().as_posix()}` is not a directory."
-    if not (Path.home() / OAUTH_TOKEN_REL).is_file():
+    if not (Path.home() / AGY_HOME_REL).is_dir():
         warnings.append(
-            "No Antigravity OAuth token found at ~/.gemini/antigravity-cli/. "
+            "Antigravity CLI has never run on this host (~/.gemini/antigravity-cli/ missing). "
             "Run `agy` once and sign in with Google, or the call may hang on auth."
         )
     return None

@@ -2,7 +2,7 @@ Language: English | [中文](README.zh-CN.md)
 
 # Agent Designer
 
-A portable skills workspace for AI coding agents — Codex, Claude Code, and Gemini.
+A portable skills workspace for AI coding agents — Claude Code, Codex, Antigravity, and Grok.
 
 Design structured, reusable skills that give your agents clear workflows, safe defaults, and multi-turn collaboration capabilities. Clone this repo as a starting point for any project where you want agents to work methodically rather than freestyle.
 
@@ -14,8 +14,8 @@ Design structured, reusable skills that give your agents clear workflows, safe d
 |---|---|
 | `collaborating-with-claude` | Delegate to Claude Code CLI (review, diff, consultation) |
 | `collaborating-with-antigravity` | Delegate to Antigravity CLI `agy` (review, web search, image analysis) |
-| `collaborating-with-gemini` | _Deprecated 2026-06-18_ — Gemini CLI; use `collaborating-with-antigravity` |
 | `collaborating-with-codex` | Delegate to Codex CLI (implementation, diagnosis, review) |
+| `collaborating-with-grok` | Delegate to Grok CLI `grok-build` (review, diagnosis, live web/X search) |
 
 **Issue-driven development** — structure work into plans and trackable Issue CSVs:
 
@@ -37,9 +37,9 @@ Design structured, reusable skills that give your agents clear workflows, safe d
 ```
 skills/                          ← skill source (the real content)
   collaborating-with-claude/     ← bridge script + SKILL.md + references
-  collaborating-with-antigravity/ ← bridge script + SKILL.md + references (agy; replaces gemini)
-  collaborating-with-gemini/     ← deprecated 2026-06-18 (Gemini CLI sunset)
+  collaborating-with-antigravity/ ← bridge script + SKILL.md + references (agy; succeeds the retired Gemini CLI)
   collaborating-with-codex/      ← bridge script + SKILL.md + references + prompt recipes
+  collaborating-with-grok/       ← bridge script + SKILL.md + references (grok-build; live web/X search)
   issue-driven-workflow/              ← plan/CSV workflow + templates + scripts
 .codex/skills/                   ← symlinks (Codex wiring)
 AGENTS.md                        ← project-specific rules
@@ -58,6 +58,7 @@ Each skill follows **progressive disclosure**:
 
 - This repo is workflow-first — most changes are text, not code.
 - Bridge scripts wrap CLI tools and return structured JSON with session continuity.
+- `.claude/settings.json` ships `permissions.allow` rules for all bridge scripts, so a host agent in an auto-approval mode can't silently deny the delegation as "high-risk". See the "Host-side approval" section in each skill.
 - Skills are portable across Codex and Claude Code with minimal adaptation.
 - If invoking bridge scripts directly, prefer `python3`.
 
