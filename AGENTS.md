@@ -7,6 +7,7 @@
 2. Clear scope and acceptance criteria before changes.
 3. Automated verification whenever possible.
 4. Small, reviewable commits and recoverable state.
+5. Check `BACKLOG.md` for deferred items at session start; delete entries when resolved.
 
 ## Tooling and tests
 - Prefer local tools first; use MCP only when needed.
