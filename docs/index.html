@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Designer — bridge scripts for AI coding agents</title>
+<meta name="description" content="A portable skills workspace: bridge scripts and playbooks that let Claude Code, Codex, Antigravity, and Grok delegate work to each other, headlessly, with session continuity and a structured report back every time.">
+<link rel="canonical" href="https://appautomaton.github.io/agent-designer/">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="alternate" type="text/plain" href="llms.txt" title="llms.txt">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="Agent Designer — bridge scripts for AI coding agents">
+<meta property="og:description" content="Bridge scripts and playbooks that let Claude Code, Codex, Antigravity, and Grok delegate work to each other, headlessly, with a structured report back every time.">
+<meta property="og:url" content="https://appautomaton.github.io/agent-designer/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Agent Designer">
+<meta name="twitter:description" content="Bridge scripts that let AI coding agents delegate to each other's CLIs.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fragment+Mono:ital@0;1&family=Piazzolla:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareSourceCode",
+  "name": "Agent Designer",
+  "description": "A portable skills workspace for AI coding agents — Claude Code, Codex, Antigravity, and Grok — with bridge scripts for cross-agent delegation and an issue-driven planning workflow.",
+  "codeRepository": "https://github.com/appautomaton/agent-designer",
+  "programmingLanguage": ["Python", "Markdown"],
+  "keywords": ["AI agents", "Claude Code", "Codex CLI", "Antigravity", "Grok", "agent skills", "multi-agent"]
+}
+</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="wordmark" href="#main">agent<b>-</b>designer</a>
+    <nav aria-label="Site">
+      <a href="https://github.com/appautomaton/agent-designer">GitHub ↗</a>
+      <a href="llms.txt">llms.txt ↗</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-copy">
+        <p class="eyebrow">Portable skills workspace</p>
+        <h1>Bridge the agents<br>you already run.</h1>
+        <p class="lede">Bridge scripts and playbooks that let Claude Code, Codex, Antigravity, and Grok delegate work to each other &mdash; headlessly, with session continuity, and a structured report back every time.</p>
+        <div class="cta-row">
+          <a class="btn primary" href="https://github.com/appautomaton/agent-designer">View source ↗</a>
+          <a class="btn ghost" href="llms.txt">Read for agents ↗</a>
+        </div>
+        <p class="status-line"><span class="dot">●</span> 4 bridges &middot; headless &middot; structured JSON out</p>
+      </div>
+
+      <div class="patchbay" aria-hidden="true">
+        <svg viewBox="0 0 640 420" role="img" aria-label="Diagram of one calling agent patched into four CLI ports: Claude, Codex, Antigravity, and Grok">
+          <path class="cable-base" d="M106,210 C300,210 300,60 540,60" />
+          <path class="cable-base" d="M106,210 C280,210 300,160 540,160" />
+          <path class="cable-base" d="M106,210 C280,210 300,260 540,260" />
+          <path class="cable-base" d="M106,210 C300,210 300,360 540,360" />
+
+          <path class="cable-pulse c1" d="M106,210 C300,210 300,60 540,60" />
+          <path class="cable-pulse c2" d="M106,210 C280,210 300,160 540,160" />
+          <path class="cable-pulse c3" d="M106,210 C280,210 300,260 540,260" />
+          <path class="cable-pulse c4" d="M106,210 C300,210 300,360 540,360" />
+
+          <circle class="node-ring" cx="80" cy="210" r="26" />
+          <circle class="node-core" cx="80" cy="210" r="6" />
+          <text class="node-label self" x="80" y="256" text-anchor="middle">YOUR AGENT</text>
+
+          <circle class="node-ring" cx="560" cy="60" r="20" />
+          <circle class="node-core" cx="560" cy="60" r="5" />
+          <text class="node-label" x="560" y="24" text-anchor="middle">CLAUDE</text>
+
+          <circle class="node-ring" cx="560" cy="160" r="20" />
+          <circle class="node-core" cx="560" cy="160" r="5" />
+          <text class="node-label" x="560" y="124" text-anchor="middle">CODEX</text>
+
+          <circle class="node-ring" cx="560" cy="260" r="20" />
+          <circle class="node-core" cx="560" cy="260" r="5" />
+          <text class="node-label" x="560" y="300" text-anchor="middle">ANTIGRAVITY</text>
+
+          <circle class="node-ring" cx="560" cy="360" r="20" />
+          <circle class="node-core" cx="560" cy="360" r="5" />
+          <text class="node-label" x="560" y="400" text-anchor="middle">GROK</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="eyebrow">What it is</p>
+      <h2>One workspace, several runtimes</h2>
+      <p class="section-intro">Most agent frameworks assume one model, one runtime, one shot at the task. This one assumes otherwise: you're probably already running several agents, and a big goal deserves a plan before it deserves code. Each skill in <code class="mono">skills/</code> pairs a script with a playbook &mdash; a SKILL.md plus reference docs &mdash; whether that means bridging to another CLI's headless mode, or turning a goal into a tracked Issue CSV.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="eyebrow">The bridges</p>
+      <h2>Four CLIs, one calling convention</h2>
+      <div class="bridges">
+
+        <article class="bridge-card">
+          <svg class="jack" viewBox="0 0 32 32" aria-hidden="true">
+            <circle cx="16" cy="16" r="10" fill="none" stroke="#c08a3e" stroke-width="2.5"/>
+            <circle cx="16" cy="16" r="3.5" fill="#5fb8ae"/>
+          </svg>
+          <h3>Claude Code</h3>
+          <p>Review, diff read, second-opinion consultation. Also the harness most of these skills are authored from.</p>
+        </article>
+
+        <article class="bridge-card">
+          <svg class="jack" viewBox="0 0 32 32" aria-hidden="true">
+            <circle cx="16" cy="16" r="10" fill="none" stroke="#c08a3e" stroke-width="2.5"/>
+            <circle cx="16" cy="16" r="3.5" fill="#5fb8ae"/>
+          </svg>
+          <h3>Codex</h3>
+          <p>Implementation, diagnosis, review, and image generation via gpt-image-2.</p>
+        </article>
+
+        <article class="bridge-card">
+          <svg class="jack" viewBox="0 0 32 32" aria-hidden="true">
+            <circle cx="16" cy="16" r="10" fill="none" stroke="#c08a3e" stroke-width="2.5"/>
+            <circle cx="16" cy="16" r="3.5" fill="#5fb8ae"/>
+          </svg>
+          <h3>Antigravity <span class="mono" style="color:var(--paper-dim); font-size:0.8em;">(agy)</span></h3>
+          <p>Advisory review, web search, image analysis &mdash; no writes, by convention.</p>
+        </article>
+
+        <article class="bridge-card">
+          <svg class="jack" viewBox="0 0 32 32" aria-hidden="true">
+            <circle cx="16" cy="16" r="10" fill="none" stroke="#c08a3e" stroke-width="2.5"/>
+            <circle cx="16" cy="16" r="3.5" fill="#5fb8ae"/>
+          </svg>
+          <h3>Grok <span class="mono" style="color:var(--paper-dim); font-size:0.8em;">(grok-build)</span></h3>
+          <p>Live web &amp; X search, review, diagnosis.</p>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="eyebrow">The protocol</p>
+      <h2>How a handoff works</h2>
+      <ol class="steps">
+        <li><span class="tag">01</span><p><strong>Prompt in.</strong> The bridge wraps the target CLI's headless mode and forwards your prompt, plus any files.</p></li>
+        <li><span class="tag">02</span><p><strong>Model + session out.</strong> The response reports the model that actually answered and a session ID for the next turn.</p></li>
+        <li><span class="tag">03</span><p><strong>Activity, counted.</strong> Commands run, files touched, tool calls, web searches &mdash; a structured tally, not just prose.</p></li>
+        <li><span class="tag">04</span><p><strong>Never silently degraded.</strong> If a host's auto-approval settings block the bridge call, that surfaces as an error, not a quiet skip.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="eyebrow">Issue-driven development</p>
+      <h2>Plan first, then drive</h2>
+      <p class="section-intro"><code class="mono">issue-driven-workflow</code> turns a goal into a plan and a trackable Issue CSV, then executes autonomously &mdash; each issue moves through its own status instead of one long run you have to trust blind.</p>
+
+      <div class="printout">
+        <table class="ledger">
+          <thead>
+            <tr><th>id</th><th>issue</th><th>status</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>01</td><td>Draft plan from the stated goal</td><td><span class="tag-status done">done</span></td></tr>
+            <tr><td>02</td><td>Generate the Issue CSV</td><td><span class="tag-status done">done</span></td></tr>
+            <tr><td>03</td><td>Implement + verify, issue by issue</td><td><span class="tag-status wip">in progress</span></td></tr>
+            <tr><td>04</td><td>Blocked issue surfaced, not hidden</td><td><span class="tag-status blocked">blocked</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="eyebrow">Built for agents, readable by agents</p>
+      <h2>This page has no client-side wall</h2>
+      <p class="section-intro">Static HTML &mdash; no client-side rendering stands between a crawler and the content. Structured data describes the project; <a href="llms.txt">llms.txt</a> points at the docs worth reading first. If you're an agent evaluating this repo: start there.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="eyebrow">Getting started</p>
+      <h2>Clone it, then make it yours</h2>
+      <div class="printout">
+        <button class="copy-btn" type="button" data-copy-target="clone-cmd">Copy</button>
+        <pre id="clone-cmd"><span class="muted"># optional: use as a template</span>
+git clone https://github.com/appautomaton/agent-designer.git
+cd agent-designer
+rm -rf .git &amp;&amp; git init</pre>
+      </div>
+      <p class="section-intro" style="margin-top:1.25rem;">Then write your <code class="mono">AGENTS.md</code> and ask your agent to create a plan, generate an Issue CSV, or collaborate with another CLI.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>&copy; 2026 appautomaton &mdash; verified against each CLI's current release, no version archaeology</p>
+    <p class="links">
+      <a href="https://github.com/appautomaton/agent-designer">GitHub</a>
+      <a href="llms.txt">llms.txt</a>
+      <a href="https://github.com/appautomaton/agent-designer/blob/main/BACKLOG.md">Backlog</a>
+    </p>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>

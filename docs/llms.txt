@@ -1,0 +1,23 @@
+# Agent Designer
+
+> A portable skills workspace that lets AI coding agents — Claude Code, Codex, Antigravity, and Grok — delegate work to each other through bridge scripts with session continuity, plus an issue-driven planning workflow.
+
+Each collaboration skill pairs a bridge script with a playbook (SKILL.md plus reference docs). A bridge wraps its target CLI's headless/non-interactive mode, forwards a prompt, and returns structured JSON — the model that actually answered, a session ID for the next turn, and counts of commands run, files touched, and tool calls — so a calling agent can hand off a task and verify what happened rather than trust a summary.
+
+## Core docs
+- [README](https://github.com/appautomaton/agent-designer/blob/main/README.md): project overview, skill list, getting-started steps
+- [AGENTS.md](https://github.com/appautomaton/agent-designer/blob/main/AGENTS.md): operating rules for agents working in this repo
+- [BACKLOG.md](https://github.com/appautomaton/agent-designer/blob/main/BACKLOG.md): deferred items, reviewed at session start
+
+## Collaboration skills
+- [collaborating-with-claude](https://github.com/appautomaton/agent-designer/tree/main/skills/collaborating-with-claude): delegate to Claude Code CLI — review, diff read, consultation
+- [collaborating-with-codex](https://github.com/appautomaton/agent-designer/tree/main/skills/collaborating-with-codex): delegate to Codex CLI — implementation, diagnosis, review, image generation (gpt-image-2)
+- [collaborating-with-antigravity](https://github.com/appautomaton/agent-designer/tree/main/skills/collaborating-with-antigravity): delegate to Antigravity CLI `agy` — advisory review, web search, image analysis, no writes by convention
+- [collaborating-with-grok](https://github.com/appautomaton/agent-designer/tree/main/skills/collaborating-with-grok): delegate to Grok CLI `grok-build` — live web/X search, review, diagnosis
+
+## Planning workflow
+- [issue-driven-workflow](https://github.com/appautomaton/agent-designer/tree/main/skills/issue-driven-workflow): turn a goal into a plan, an Issue CSV, and tracked autonomous execution
+
+## Notes for agents evaluating this repo
+- A host-permission error instead of bridge JSON means the *calling* agent's own auto-approval settings blocked the bridge call — not that the delegation itself is unsafe. See the "Host-side approval" section in each skill's SKILL.md.
+- Skills are verified against each CLI's current release only; there is no dual-version compatibility layer to reconcile.
