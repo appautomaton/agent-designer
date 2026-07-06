@@ -504,10 +504,10 @@ def main() -> None:
     allow_tools = [t.strip() for t in args.tools.split(",") if t.strip()]
     if any(t in ("web_search", "web_fetch") for t in allow_tools):
         warnings.append(
-            "`--tools` allowlist includes web_search/web_fetch, but the search agent needs "
-            "run_terminal_cmd internally, so live search cannot run under an allowlist. For live "
-            'web/X search, keep the default toolset and instead pass '
-            '`--disallowed-tools "run_terminal_cmd,search_replace"`.'
+            "`--tools` allowlist includes web_search/web_fetch: on grok-build the session build "
+            "fails outright (RequirementError on run_terminal_cmd's auto-background default; no "
+            "allowlist composition works). For live web/X search, keep the default toolset and "
+            'instead pass `--disallowed-tools "run_terminal_cmd,search_replace"`.'
         )
 
     cmd = build_command(args, cd, prompt)
