@@ -14,7 +14,7 @@ Design structured, reusable skills that give your agents clear workflows, safe d
 |---|---|
 | `collaborating-with-claude` | Delegate to Claude Code CLI (review, diff, consultation) |
 | `collaborating-with-antigravity` | Delegate to Antigravity CLI `agy` (review, web search, image analysis) |
-| `collaborating-with-codex` | Delegate to Codex CLI (implementation, diagnosis, review) |
+| `collaborating-with-codex` | Delegate to Codex CLI (implementation, diagnosis, review, image generation) |
 | `collaborating-with-grok` | Delegate to Grok CLI `grok-build` (review, diagnosis, live web/X search) |
 
 **Issue-driven development** — structure work into plans and trackable Issue CSVs:

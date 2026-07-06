@@ -14,7 +14,7 @@ Language: 中文 | [English](README.md)
 |---|---|
 | `collaborating-with-claude` | 委托给 Claude Code CLI（评审、差异对比、咨询） |
 | `collaborating-with-antigravity` | 委托给 Antigravity CLI `agy`（评审、网络搜索、图片分析） |
-| `collaborating-with-codex` | 委托给 Codex CLI（实现、诊断、评审） |
+| `collaborating-with-codex` | 委托给 Codex CLI（实现、诊断、评审、图像生成） |
 | `collaborating-with-grok` | 委托给 Grok CLI `grok-build`（评审、诊断、实时 Web/X 搜索） |
 
 **Issue 驱动开发** — 将工作结构化为计划和可追踪的 Issue CSV：

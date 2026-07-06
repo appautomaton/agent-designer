@@ -164,4 +164,4 @@ If Codex changes event names, update `scripts/codex_bridge.py` and this referenc
 
 `codex debug models` lists current model slugs and reasoning levels (`low`, `medium`, `high`, `xhigh`); at the time of verification: `gpt-5.5` (default, medium), `gpt-5.4`, `gpt-5.4-mini`, and `gpt-5.3-codex-spark` (default high).
 
-Current `multi_agent`, `fast_mode`, `shell_snapshot`, `skill_mcp_dependency_install`, `guardian_approval`, and `hooks` are stable according to local `codex features list`. Removed flags such as `steer`, `request_rule`, `remote_models`, `search_tool`, and `js_repl` should not be used.
+Stable and enabled per local `codex features list`: `multi_agent`, `fast_mode`, `guardian_approval`, `hooks`, `image_generation` (gpt-image-2, `$imagegen`), `browser_use`, and `computer_use`. Removed flags such as `steer`, `request_rule`, `remote_models`, `search_tool`, and `js_repl` should not be used.

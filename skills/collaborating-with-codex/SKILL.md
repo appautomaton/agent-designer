@@ -170,6 +170,10 @@ python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
 
 Use `codex apply <TASK_ID>` only after reviewing a Codex-produced diff. Use `codex fork [SESSION_ID]` or `codex fork --last` for interactive session branching when you need to explore an alternate path without losing the original thread.
 
+## Images: input and generation
+
+Attach reference images with `--image` (repeatable). Codex also **generates** images natively via gpt-image-2 — ask in natural language or put `$imagegen` in the prompt (inside a single-quoted heredoc, or the shell eats the `$`). Verified headless through the bridge: a `--sandbox workspace-write` run saved a correct 256×256 PNG to the workspace root. Generation is a server-side tool (no shell network needed), but saving the asset requires write access — use a worktree or scratch dir. Good for icons, banners, diagrams, and placeholder art; gpt-image-2 renders coherent in-image text. Image turns consume Codex usage limits ~3–5× faster than text turns (API pricing applies instead when `OPENAI_API_KEY` is set).
+
 ## Tune performance
 
 ```bash
