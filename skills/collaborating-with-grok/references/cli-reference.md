@@ -1,6 +1,6 @@
 # Grok CLI Reference
 
-Verified for this skill against local `grok` (Grok Build TUI) **v0.2.87** on macOS (2026-07-06). The bridge wraps headless mode (`grok -p`); flags below are the ones it forwards. If grok changes its event schema or flags, update `scripts/grok_bridge.py` and this file together.
+Verified for this skill against local `grok` (Grok Build TUI) **v0.2.93** on macOS (2026-07-08). The bridge wraps headless mode (`grok -p`); flags below are the ones it forwards. If grok changes its event schema or flags, update `scripts/grok_bridge.py` and this file together.
 
 ## Headless command shape
 
@@ -22,7 +22,7 @@ grok -p "<prompt>" --output-format streaming-json --cwd /path/to/repo -r <sessio
 | `--prompt-file <PATH>` | `--prompt-file <PATH>` | Read the whole prompt from a file (native; no stdin piping). |
 | `--stdin-file <PATH>` | piped to stdin | Context/handoff file piped to grok's stdin alongside `--PROMPT`; grok folds stdin into the prompt as context. Mutually exclusive with `--prompt-file`. |
 | `--cd <DIR>` | `--cwd <PATH>` | Workspace root. The bridge also sets the child process cwd. |
-| `--model <ID>` | `-m, --model <MODEL>` | e.g. `grok-build`. Discover with `--list-models`. |
+| `--model <ID>` | `-m, --model <MODEL>` | e.g. `grok-4.5` (as of 0.2.93). Discover with `--list-models` — do not hardcode. |
 | `--output-format` | `--output-format <FMT>` | `plain` · `json` · `streaming-json` (bridge default). |
 | `--SESSION_ID <id>` | `-r, --resume <id>` | Resume an existing session; **errors if it does not exist**. |
 | `--session-id <id>` | `-s, --session-id <id>` | Name a **new** session: valid unused UUID only; does not resume — use `-r`/`-c` (grok's `--fork-session` names a fork). |
@@ -33,8 +33,8 @@ grok -p "<prompt>" --output-format streaming-json --cwd /path/to/repo -r <sessio
 | `--tools` | `--tools <LIST>` | Allowlist of built-in tools (comma-separated). |
 | `--disallowed-tools` | `--disallowed-tools <LIST>` | Denylist; supports `Agent`/`Agent(type)`. |
 | `--allow` / `--deny` | `--allow` / `--deny` | Repeatable `ToolPrefix(glob)` permission rules. |
-| `--effort` | `--effort <LEVEL>` | `low`·`medium`·`high`·`xhigh`·`max` (model-dependent). |
-| `--reasoning-effort` | `--reasoning-effort <E>` | Reasoning effort for reasoning models. |
+| `--effort` | `--effort <LEVEL>` | Alias of `--reasoning-effort` on current CLI (`low`·`medium`·`high`·`xhigh`·`max`; model-dependent). |
+| `--reasoning-effort` | `--reasoning-effort <E>` | Reasoning effort for models that support it (e.g. grok-4.5). |
 | `--max-turns` | `--max-turns <N>` | Cap agentic turns. Hitting it exits non-zero (see below). |
 | `--rules` | `--rules <TEXT>` | Extra rules appended to the system prompt. |
 | `--disable-web-search` | `--disable-web-search` | Remove `web_search`/`web_fetch`. |
@@ -60,7 +60,7 @@ Bridge-only flags: `--list-models` (parses `grok models` to JSON), `--timeout <s
 
 `--output-format plain` emits human-readable text only (no `sessionId` — multi-turn resume unavailable).
 
-**Tool calls are not surfaced in headless mode.** Even when grok reads files or searches the web, the stream contains only `thought`/`text`/`end` — no tool events. (Rich `tool_call`/`plan` updates exist only in ACP mode, `grok agent stdio`, via `session/update` notifications.) The bridge recovers this **after** the run from the session files (`~/.grok/sessions/<quote(cwd, safe='')>/<session-id>/`): `summary.json` → `model` (`current_model_id`, what actually answered) and `agent`; `updates.jsonl` → `tool_counts`/`tools_used` (count of `sessionUpdate: "tool_call"` entries). Tool failures are still not reported; `updates.jsonl` is the full audit trail.
+**Tool calls are not surfaced in headless mode.** Even when grok reads files or searches the web, the stream contains only `thought`/`text`/`end` — no tool events. (Rich `tool_call`/`plan` updates exist only in ACP mode, `grok agent stdio`, via `session/update` notifications.) The bridge recovers this **after** the run from the session files (`~/.grok/sessions/<quote(resolved-cwd, safe='')>/<session-id>/`): `summary.json` → `model` (`current_model_id`, product id) and `agent` (`agent_name`, template lineage — may still be `grok-build-plan` when `model` is `grok-4.5`); `updates.jsonl` → `tool_counts`/`tools_used`. The bridge tries both `resolve()` and `absolute()` encodings so macOS `/tmp` → `/private/tmp` still matches. Tool failures are still not reported; `updates.jsonl` is the full audit trail.
 
 `sessionId` (and `requestId`) appear only in the terminal `end`/json object — so the bridge captures `SESSION_ID` at the very end of a run. If the run is killed first (bridge `--timeout`), the bridge recovers `SESSION_ID` from the session directory this run created (its name is the session id, matched by mtime) and warns that the id was recovered — a timed-out research loop remains resumable with `-r`.
 
@@ -98,13 +98,13 @@ In headless mode an action that *would* prompt is **cancelled** (never hangs): u
 
 ## Web & X search
 
-grok-build supports **live web + X search** via the `web_search` tool (`supports_backend_search: true`).
+The **GrokBuild-lineage coding model** supports live web + X search via `web_search` (`supports_backend_search: true` in `~/.grok/models_cache.json`). As of CLI **0.2.93** that product id is **`grok-4.5`** (agent template may still report `grok-build-plan`). The old product id `grok-build` is **gone** — passing it fails with `unknown model id`.
 
-- **Pass `--model grok-build` explicitly.** `~/.grok/config.toml` `[models] default` silently overrides the factory default; under composer the run uses the Cursor agent (`agent_name: cursor`) with different tool names (`WebSearch`/`WebFetch`/`Grep`) and multi-minute research loops that look like hangs in the event-free headless stream. Verified: grok-build answered a search prompt with cited `x.ai` URLs in ~36s; composer took >240s on the same prompt while making successful WebSearch/WebFetch calls throughout.
-- **Working recipe:** keep the default toolset and remove write/shell with a **denylist**: `--disallowed-tools "run_terminal_cmd,search_replace"`.
-- **X (Twitter) search → grok-build.** Only grok-build has xAI's native backend Live Search (`supports_backend_search: true` in `~/.grok/models_cache.json`); it issues explicit X queries (`from:<handle>`, `mode:Latest`) and has returned live @xai posts with exact `x.com/.../status/...` URLs **even with `--disable-web-search`** (i.e. independent of the `web_search` tool). `grok-composer-2.5-fast` has `supports_backend_search: false` yet can still surface X posts via its own web tools — treat composer's X access as best-effort.
-- **Allowlists break grok-build search — no composition works.** Any `--tools` allowlist that includes `web_search` fails at session build with `RequirementError { tool: "GrokBuild:run_terminal_cmd", message: "auto_background_on_timeout requires enabled_background to be true", … }`. Allowlist mode disables background execution while the GrokBuild agent template keeps auto-background-on-timeout on (an upstream default: timed-out shell commands auto-background instead of being killed). Probed exhaustively: adding `run_terminal_cmd`, `background_tasks`, or `monitor` to the allowlist does not satisfy the constraint. Unfixed upstream (0.2.87 is latest per `grok update --check`); an allowlist without web tools (e.g. `read_file,grep,list_dir`) builds fine. The bridge warns when it sees `web_search`/`web_fetch` in a `--tools` allowlist; use the denylist form.
-- `web_fetch` (fetch a named URL → markdown) is **disabled unless `GROK_WEB_FETCH=1`**; `web_search` needs no env var. The web-search model is configurable via `[models] web_search` / `GROK_WEB_SEARCH_MODEL`.
+- **Pass an explicit coding `--model` for search.** Host `~/.grok/config.toml` `[models] default` may select composer. Under composer (`grok-composer-2.5-fast`, `agent_name: cursor`) tool names differ (`WebSearch`/`WebFetch`/`Grep`) and research loops can take minutes in the event-free headless stream.
+- **Working recipe:** keep the default toolset and remove write/shell with a **denylist**: `--disallowed-tools "run_terminal_cmd,search_replace"` (plus `--model grok-4.5` or whatever `--list-models` marks as the coding default).
+- **X (Twitter) search → coding / backend-search model.** Prefer `supports_backend_search: true`. Composer reports `supports_backend_search: false` but may still surface X via its own web tools — best-effort only.
+- **Allowlists break coding-agent search — still true on 0.2.93.** Any `--tools` allowlist that includes `web_search` fails at session build with `RequirementError { tool: "GrokBuild:run_terminal_cmd", message: "auto_background_on_timeout requires enabled_background to be true", … }`. Re-probed on 0.2.93. An allowlist without web tools (e.g. `read_file,grep,list_dir`) builds fine. The bridge warns when it sees `web_search`/`web_fetch` in a `--tools` allowlist; use the denylist form.
+- `web_fetch` is **disabled unless `GROK_WEB_FETCH=1`**; `web_search` needs no env var. The web-search model is configurable via `[models] web_search` / `GROK_WEB_SEARCH_MODEL`.
 
 ## Models
 
@@ -118,7 +118,9 @@ Available models:
   - …
 ```
 
-`grok-build` is xAI's coding model (512k context) and the factory default; `grok-composer-2.5-fast` is a faster alternative (200k context, Cursor agent). The reported default is the **effective** one — `~/.grok/config.toml` `[models] default` overrides the factory setting — so check `--list-models`' `default` field and pass `--model grok-build` explicitly when the recipes assume it. The model list is fetched live; under a network-restricted sandbox the fetch falls back to the local `~/.grok/models_cache.json` and may show fewer models.
+**As of 0.2.93:** `grok-4.5` is the coding default (~500k context, backend search, reasoning effort supported); `grok-composer-2.5-fast` is the Cursor-agent alternate (~200k). Probe live — do not hardcode the catalog across CLI upgrades. The reported default is the **effective** one when config and CLI agree; always check the result's `model` field after a run. Under a network-restricted sandbox the list may fall back to `~/.grok/models_cache.json` and show fewer models.
+
+Other headless flags exist on the CLI (`--best-of-n`, `--check`, `--json-schema`, `--prompt-json`, …) but are not forwarded by the bridge unless added deliberately.
 
 ## Auth, sessions, file locations
 

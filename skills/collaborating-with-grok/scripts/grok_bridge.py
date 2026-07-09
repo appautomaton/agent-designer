@@ -5,7 +5,7 @@ Grok CLI Bridge Script.
 Wraps the Grok CLI (`grok -p`, headless mode) to provide a JSON interface,
 live stderr progress, and multi-turn continuity via SESSION_ID.
 
-Verified against `grok` (Grok Build TUI) v0.2.87 on macOS. Facts the bridge
+Verified against `grok` (Grok Build TUI) v0.2.93 on macOS. Facts the bridge
 relies on:
 
   * Headless `grok -p` streams cleanly to a pipe (no TTY required) and exits on
@@ -19,7 +19,9 @@ relies on:
     tool telemetry after the run from the session files under
     `~/.grok/sessions/<encoded-cwd>/<session-id>/` (updates.jsonl for tool
     calls, summary.json for the model that actually answered — the host's
-    ~/.grok/config.toml `[models] default` may override grok-build).
+    ~/.grok/config.toml `[models] default` may override the CLI default).
+    Session paths are encoded from the resolved cwd (symlinks matter: macOS
+    `/tmp` → `/private/tmp`).
   * `--output-format json` emits a single object:
         {"text":..,"stopReason":..,"sessionId":..,"requestId":..,"thought":..}
   * `sessionId` appears only in the terminal `end`/json object. Resume a prior
@@ -340,6 +342,20 @@ def parse_json_blob(raw: str, state: Dict[str, Any]) -> None:
     state["request_id"] = obj.get("requestId") or state["request_id"]
 
 
+def session_cwd_encodings(cd: Path) -> List[str]:
+    """Return URL-encoded cwd keys grok may use under ~/.grok/sessions/.
+
+    Grok encodes the resolved workspace path. On macOS, `/tmp` is a symlink to
+    `/private/tmp`, so absolute() and resolve() can disagree — try both.
+    """
+    encodings: List[str] = []
+    for candidate in (cd.resolve(), cd.absolute()):
+        key = urllib.parse.quote(str(candidate), safe="")
+        if key not in encodings:
+            encodings.append(key)
+    return encodings
+
+
 def collect_session_telemetry(cd: Path, session_id: Optional[str], run_start: float) -> Dict[str, Any]:
     """Recover post-run telemetry from grok's session files.
 
@@ -351,20 +367,21 @@ def collect_session_telemetry(cd: Path, session_id: Optional[str], run_start: fl
     """
     telemetry: Dict[str, Any] = {}
     try:
-        sessions_root = (
-            Path.home() / ".grok" / "sessions" / urllib.parse.quote(str(cd.absolute()), safe="")
-        )
         session_dir: Optional[Path] = None
-        if session_id and (sessions_root / session_id).is_dir():
-            session_dir = sessions_root / session_id
-        elif sessions_root.is_dir():
-            fresh = [
-                d for d in sessions_root.iterdir()
-                if d.is_dir() and d.stat().st_mtime >= run_start - 2
-            ]
-            if fresh:
-                session_dir = max(fresh, key=lambda d: d.stat().st_mtime)
-                telemetry["recovered_session_id"] = session_dir.name
+        for enc in session_cwd_encodings(cd):
+            sessions_root = Path.home() / ".grok" / "sessions" / enc
+            if session_id and (sessions_root / session_id).is_dir():
+                session_dir = sessions_root / session_id
+                break
+            if sessions_root.is_dir():
+                fresh = [
+                    d for d in sessions_root.iterdir()
+                    if d.is_dir() and d.stat().st_mtime >= run_start - 2
+                ]
+                if fresh:
+                    session_dir = max(fresh, key=lambda d: d.stat().st_mtime)
+                    telemetry["recovered_session_id"] = session_dir.name
+                    break
         if session_dir is None:
             return telemetry
 
@@ -424,7 +441,7 @@ def parse_args() -> argparse.Namespace:
     session.add_argument("--session-id", dest="session_id", default="", help="Name a NEW session (grok -s; valid unused UUID; does not resume — use --SESSION_ID/--continue).")
     session.add_argument("--continue", dest="continue_session", action="store_true", help="Continue the most recent session in --cd (grok -c).")
 
-    parser.add_argument("--model", default="", help="Model ID (e.g. grok-build). Discover with --list-models.")
+    parser.add_argument("--model", default="", help="Model ID (e.g. grok-4.5 as of CLI 0.2.93). Discover with --list-models — do not hardcode.")
     parser.add_argument("--output-format", default="streaming-json", choices=OUTPUT_FORMATS, help="grok output format. Default streaming-json (live progress + SESSION_ID).")
 
     parser.add_argument("--permission-mode", default="default", choices=("",) + PERMISSION_MODES, help="Tool-approval mode. Default 'default' (gated actions are cancelled, not auto-approved). Pass '' to inherit grok config.")
@@ -435,8 +452,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--allow", action="append", default=[], help='Permission allow rule, e.g. "Bash(npm*)" or "WebFetch(domain:docs.rs)". Repeatable.')
     parser.add_argument("--deny", action="append", default=[], help='Permission deny rule, e.g. "Bash(rm*)". Repeatable. Deny beats allow.')
 
-    parser.add_argument("--effort", default="", choices=("",) + EFFORT_LEVELS, help="Effort level (model-dependent; grok-build ignores it).")
-    parser.add_argument("--reasoning-effort", default="", help="Reasoning effort for reasoning models.")
+    parser.add_argument("--effort", default="", choices=("",) + EFFORT_LEVELS, help="Effort level (model-dependent; CLI alias of --reasoning-effort).")
+    parser.add_argument("--reasoning-effort", default="", help="Reasoning effort for models that support it (e.g. grok-4.5).")
     parser.add_argument("--max-turns", type=int, default=0, help="Maximum agentic turns before grok stops (0 = unset).")
     parser.add_argument("--rules", default="", help="Extra rules appended to the system prompt.")
     parser.add_argument("--disable-web-search", action="store_true", help="Remove the web_search/web_fetch tools.")
@@ -504,10 +521,11 @@ def main() -> None:
     allow_tools = [t.strip() for t in args.tools.split(",") if t.strip()]
     if any(t in ("web_search", "web_fetch") for t in allow_tools):
         warnings.append(
-            "`--tools` allowlist includes web_search/web_fetch: on grok-build the session build "
-            "fails outright (RequirementError on run_terminal_cmd's auto-background default; no "
-            "allowlist composition works). For live web/X search, keep the default toolset and "
-            'instead pass `--disallowed-tools "run_terminal_cmd,search_replace"`.'
+            "`--tools` allowlist includes web_search/web_fetch: on the GrokBuild-lineage coding "
+            "agent (e.g. grok-4.5) the session build fails outright (RequirementError on "
+            "run_terminal_cmd's auto-background default; no allowlist composition works — still "
+            "true on CLI 0.2.93). For live web/X search, keep the default toolset and instead "
+            'pass `--disallowed-tools "run_terminal_cmd,search_replace"`.'
         )
 
     cmd = build_command(args, cd, prompt)
@@ -592,12 +610,22 @@ def main() -> None:
             "(grok was killed before emitting it); resume with `--SESSION_ID` to continue."
         )
     actual_model = telemetry.get("model") or args.model
-    if not args.model and actual_model and actual_model != "grok-build":
-        warnings.append(
-            f"No `--model` was passed and the host config default ran: {actual_model}. "
-            "This skill's recipes (tool names, search behavior, timing) assume grok-build — "
-            "pass `--model grok-build` explicitly, especially for search/X tasks."
+    actual_agent = telemetry.get("agent") or ""
+    # Only warn when the effective agent is the alternate (composer/cursor) lineage —
+    # not on every omit-`--model` coding run. Result still reports `model`/`agent`.
+    if not args.model and actual_model:
+        composer_like = (
+            "composer" in actual_model.lower()
+            or actual_agent == "cursor"
+            or str(actual_agent).startswith("cursor")
         )
+        if composer_like:
+            warnings.append(
+                f"No `--model` was passed; composer/cursor agent ran: model={actual_model!r}, "
+                f"agent={actual_agent or 'unknown'!r}. Tool names and research timing differ from "
+                "the GrokBuild-lineage coding model. For search/X or predictable tool ids, pass "
+                "`--model` with a coding model from `--list-models` (e.g. grok-4.5 as of 0.2.93)."
+            )
     if returncode == 124 and telemetry.get("tool_counts"):
         total_calls = sum(telemetry["tool_counts"].values())
         age = telemetry.get("last_activity_age_s")

@@ -54,7 +54,7 @@ Bad:
 Think harder and be very smart.
 ```
 
-Fix — add a verification loop (grok-build ignores `--effort` anyway):
+Fix — add a verification loop (raising `--reasoning-effort` alone is not a substitute for clear acceptance checks):
 ```xml
 <verification_loop>
 Before finalizing, verify that the answer matches the observed evidence and task requirements.

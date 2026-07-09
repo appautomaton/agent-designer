@@ -97,4 +97,4 @@ Output a comparison table with a recommendation.
 - Provide clues: failing commands, stack traces, recent commits.
 - Request structured output: table, JSON, or unified diff.
 - One objective per run; split unrelated work into separate sessions.
-- grok-build ignores `--effort`; reach for a different model rather than more "thinking" when a task is hard.
+- Prefer `--reasoning-effort` (CLI also aliases `--effort`) on models that support it (e.g. grok-4.5). If depth is still lacking, change the approach or model rather than only raising effort.

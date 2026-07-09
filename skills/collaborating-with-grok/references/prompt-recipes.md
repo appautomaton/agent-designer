@@ -118,4 +118,4 @@ Back important claims with a source URL. Prefer primary sources.
 </citation_rules>
 ```
 
-Run with `--model grok-build --disallowed-tools "run_terminal_cmd,search_replace" --timeout 300` — the explicit model matters (a host config default may swap in a slower agent with different tools) and research loops need the generous timeout.
+Run with `--model grok-4.5 --disallowed-tools "run_terminal_cmd,search_replace" --timeout 300` (or the current coding id from `--list-models`) — pass an explicit coding model when search/X matters (host config can select composer) and give research loops a generous timeout.

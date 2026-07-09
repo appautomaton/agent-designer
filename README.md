@@ -15,7 +15,7 @@ Design structured, reusable skills that give your agents clear workflows, safe d
 | `collaborating-with-claude` | Delegate to Claude Code CLI (review, diff, consultation) |
 | `collaborating-with-antigravity` | Delegate to Antigravity CLI `agy` (review, web search, image analysis) |
 | `collaborating-with-codex` | Delegate to Codex CLI (implementation, diagnosis, review, image generation) |
-| `collaborating-with-grok` | Delegate to Grok CLI `grok-build` (review, diagnosis, live web/X search) |
+| `collaborating-with-grok` | Delegate to Grok CLI (review, diagnosis, live web/X search; coding model e.g. `grok-4.5`) |
 
 **Issue-driven development** — structure work into plans and trackable Issue CSVs:
 
@@ -39,7 +39,7 @@ skills/                          ← skill source (the real content)
   collaborating-with-claude/     ← bridge script + SKILL.md + references
   collaborating-with-antigravity/ ← bridge script + SKILL.md + references (agy; succeeds the retired Gemini CLI)
   collaborating-with-codex/      ← bridge script + SKILL.md + references + prompt recipes
-  collaborating-with-grok/       ← bridge script + SKILL.md + references (grok-build; live web/X search)
+  collaborating-with-grok/       ← bridge script + SKILL.md + references (Grok CLI; live web/X search)
   issue-driven-workflow/              ← plan/CSV workflow + templates + scripts
 .codex/skills/                   ← symlinks (Codex wiring)
 AGENTS.md                        ← project-specific rules
