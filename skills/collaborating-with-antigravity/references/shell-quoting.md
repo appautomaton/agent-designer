@@ -8,7 +8,7 @@ Markdown inline code uses backticks (`` `like/this` ``). In bash/zsh, backticks 
 substitution**, even inside double quotes, so this breaks:
 
 ```bash
-python3 skills/collaborating-with-antigravity/scripts/agy_bridge.py \
+python3 <skill_dir>/scripts/agy_bridge.py \
   --cd "." \
   --PROMPT "Analyze `tmp/eth_dev_news_raw.json` and summarize."
 ```
@@ -30,7 +30,7 @@ Set `as_of` to `YYYY-MM-DD`.
 EOF
 )"
 
-python3 skills/collaborating-with-antigravity/scripts/agy_bridge.py \
+python3 <skill_dir>/scripts/agy_bridge.py \
   --cd "." \
   --PROMPT "$PROMPT"
 ```
@@ -45,7 +45,7 @@ Review src/auth.py around login() and propose fixes.
 OUTPUT: Unified Diff Patch ONLY.
 EOF
 
-python3 skills/collaborating-with-antigravity/scripts/agy_bridge.py \
+python3 <skill_dir>/scripts/agy_bridge.py \
   --cd "." --prompt-file /tmp/agy-prompt.md
 ```
 

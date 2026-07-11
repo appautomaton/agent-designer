@@ -25,6 +25,8 @@ surfaces no conversation ID and no structured output (see below).
 
 Mechanics, upstream issue numbers, and the verified flag surface: [references/agy-cli.md](references/agy-cli.md).
 
+Commands below write `<skill_dir>` for the absolute path of the directory containing this SKILL.md. Your harness reports that path when it loads the skill, for example `~/.claude/skills/collaborating-with-antigravity`. Substitute it before running.
+
 ## Safety
 
 `agy` can read and write files and run tools in the workspace. To constrain it:
@@ -41,7 +43,7 @@ Mechanics, upstream issue numbers, and the verified flag surface: [references/ag
 
 Everything above governs the child agy. The **host** agent's own permission layer gates the `python3 … agy_bridge.py` Bash call first — and under classifier-gated auto-approval (Claude Code `auto`/`dontAsk`, Codex non-interactive runs), a long-running script that spawns another agent over the codebase pattern-matches "high-risk" and can be **denied silently**: the delegation never starts. A host permission error instead of bridge JSON means the host blocked the bridge, not that agy failed.
 
-- **Pre-authorize; don't rely on the classifier.** Claude Code host: add `"Bash(python3 skills/collaborating-with-antigravity/scripts/agy_bridge.py *)"` to `permissions.allow` in `.claude/settings.json` (this repo ships rules for all bridges). Rules are literal prefix matches — they must match how the command is actually invoked.
+- **Pre-authorize the bridge instead of relying on the classifier.** Claude Code host: add `"Bash(python3 *collaborating-with-antigravity*bridge.py*)"` to `permissions.allow` in your `settings.json`. The wildcard form keeps matching wherever the skill is installed. Sandboxed hosts also need `"python3 *collaborating-with-antigravity*bridge.py*"` in `sandbox.excludedCommands`, because sandbox network policy blocks the child CLI's API traffic even after the command is allowed. Install and approval runbooks: [docs/setup/](https://github.com/appautomaton/agent-designer/tree/main/docs/setup) in the source repo.
 - **Codex host: the sandbox is the second gate.** The child `agy` CLI needs network for Google auth and inference, which the host sandbox blocks in `read-only` and `workspace-write`. Run the bridge call through an approved escalation, or knowingly grant network for that call.
 - **Never degrade silently.** If the host denies the bridge call, report it and propose the allowlist fix — don't substitute your own answer for the independent second opinion that was requested.
 
@@ -67,7 +69,7 @@ Review src/auth.py around login() and propose fixes.
 OUTPUT: Unified Diff Patch ONLY.
 EOF
 )"
-python3 skills/collaborating-with-antigravity/scripts/agy_bridge.py \
+python3 <skill_dir>/scripts/agy_bridge.py \
   --cd "." --model "Gemini 3.5 Flash (Low)" --PROMPT "$PROMPT"
 ```
 
@@ -81,15 +83,15 @@ Capture `SESSION_ID` from the first call and pass it back (use the same `--cd`):
 
 ```bash
 # Turn 1
-python3 skills/collaborating-with-antigravity/scripts/agy_bridge.py \
+python3 <skill_dir>/scripts/agy_bridge.py \
   --cd "." --PROMPT "Analyze the bug in foo()."
 
 # Turn 2 — resume by ID
-python3 skills/collaborating-with-antigravity/scripts/agy_bridge.py \
+python3 <skill_dir>/scripts/agy_bridge.py \
   --cd "." --SESSION_ID "<id>" --PROMPT "Propose a fix as a unified diff."
 
 # Or continue the most recent conversation
-python3 skills/collaborating-with-antigravity/scripts/agy_bridge.py \
+python3 <skill_dir>/scripts/agy_bridge.py \
   --cd "." --continue --PROMPT "What about edge cases?"
 ```
 
@@ -124,7 +126,7 @@ Set the host's `timeout_ms` to **600000** (10 min) when invoking via a command r
 **Probe the live list — don't hardcode it:**
 
 ```bash
-python3 skills/collaborating-with-antigravity/scripts/agy_bridge.py --list-models
+python3 <skill_dir>/scripts/agy_bridge.py --list-models
 # -> { "success": true, "models": ["Gemini 3.5 Flash (Low)", "Claude Sonnet 4.6 (Thinking)", ...] }
 ```
 
@@ -154,8 +156,8 @@ Don't add the upload dir to `.gitignore` (agy, like Gemini, may refuse to read i
 
 ## Verification
 
-- Smoke: `python3 skills/collaborating-with-antigravity/scripts/agy_bridge.py --help`
-- Syntax: `python3 -m py_compile skills/collaborating-with-antigravity/scripts/agy_bridge.py`
+- Smoke: `python3 <skill_dir>/scripts/agy_bridge.py --help`
+- Syntax: `python3 -m py_compile <skill_dir>/scripts/agy_bridge.py`
 - Auth: run `agy` once and sign in with Google (token at `~/.gemini/antigravity-cli/`).
 - Session test: run one prompt; confirm JSON has `success: true` and a `SESSION_ID`, then resume with
   `--SESSION_ID` and confirm continuity.

@@ -11,11 +11,13 @@ Drive the Grok CLI headlessly as an independent collaborator while the calling a
 
 The bridge (`scripts/grok_bridge.py`) wraps `grok -p`, streams progress to stderr, returns structured JSON, and manages multi-turn continuity via `SESSION_ID`. Always go through the bridge — don't invoke `grok` directly — so output parsing, the safe permission default, and session handling stay consistent.
 
+Commands below write `<skill_dir>` for the absolute path of the directory containing this SKILL.md. Your harness reports that path when it loads the skill, for example `~/.claude/skills/collaborating-with-grok`. Substitute it before running.
+
 In Claude Code, run non-trivial calls in the background and watch stderr progress:
 
 ```text
 Bash tool call:
-  command: python3 skills/collaborating-with-grok/scripts/grok_bridge.py --cd "/project" --tools "read_file,grep,list_dir" --PROMPT "Analyze auth flow in src/auth/"
+  command: python3 <skill_dir>/scripts/grok_bridge.py --cd "/project" --tools "read_file,grep,list_dir" --PROMPT "Analyze auth flow in src/auth/"
   run_in_background: true
 ```
 
@@ -33,7 +35,7 @@ Never hand grok secrets or production data. `--sandbox workspace` constrains wri
 
 ## Host-side approval
 
-The host gates the `python3 … grok_bridge.py` call first. Pre-authorize it (this repo ships `.claude/settings.json` allow rules). Codex hosts: the sandbox can block the child CLI's API network — escalate or grant network for that call. If the host denies the bridge, report it — don't substitute your own answer for the requested second opinion.
+The host gates the `python3 … grok_bridge.py` call first. Claude Code host: pre-authorize it with `"Bash(python3 *collaborating-with-grok*bridge.py*)"` in `permissions.allow`, and on sandboxed hosts add the same pattern to `sandbox.excludedCommands` so the child CLI keeps API network access. The wildcard form keeps matching wherever the skill is installed. Codex hosts: the sandbox can block the child CLI's API network, so escalate or grant network for that call. If the host denies the bridge, report it rather than substituting your own answer for the requested second opinion. Install and approval runbooks: [docs/setup/](https://github.com/appautomaton/agent-designer/tree/main/docs/setup) in the source repo.
 
 ## Headless note
 
@@ -48,7 +50,7 @@ Use for: cross-model second opinions, unified-diff proposals, live web/X researc
 Differentiator: live web/X via `web_search` on the **coding** model (backend search). As of CLI **0.2.93**, that model is **`grok-4.5`** — confirm with `--list-models` after upgrades.
 
 ```bash
-python3 skills/collaborating-with-grok/scripts/grok_bridge.py \
+python3 <skill_dir>/scripts/grok_bridge.py \
   --cd "." --model grok-4.5 \
   --disallowed-tools "run_terminal_cmd,search_replace" \
   --timeout 300 \
@@ -75,7 +77,7 @@ Do not use Markdown code fences or add prose before or after the diff.
 </structured_output_contract>
 EOF
 )"
-python3 skills/collaborating-with-grok/scripts/grok_bridge.py \
+python3 <skill_dir>/scripts/grok_bridge.py \
   --cd "." --tools "read_file,grep,list_dir" --PROMPT "$PROMPT"
 ```
 
@@ -87,11 +89,11 @@ Large prompts: `--prompt-file`. Handoff file + short instruction: `--stdin-file`
 
 ```bash
 # Turn 1
-python3 skills/collaborating-with-grok/scripts/grok_bridge.py \
+python3 <skill_dir>/scripts/grok_bridge.py \
   --cd "." --tools "read_file,grep,list_dir" --PROMPT "Analyze the bug in foo()."
 
 # Turn 2 — same --cd
-python3 skills/collaborating-with-grok/scripts/grok_bridge.py \
+python3 <skill_dir>/scripts/grok_bridge.py \
   --cd "." --SESSION_ID "<id>" --PROMPT "Propose a fix as a unified diff."
 ```
 
@@ -116,7 +118,7 @@ Full flag map + event schema: [cli-reference.md](references/cli-reference.md). H
 Probe live — **don't hardcode** the catalog (IDs change across CLI releases):
 
 ```bash
-python3 skills/collaborating-with-grok/scripts/grok_bridge.py --list-models
+python3 <skill_dir>/scripts/grok_bridge.py --list-models
 # -> { "success": true, "models": [...], "default": "<effective default>" }
 ```
 
@@ -130,8 +132,8 @@ Resources: [prompt-template.md](assets/prompt-template.md) · [prompt-blocks.md]
 
 ## Verification
 
-- Smoke: `python3 skills/collaborating-with-grok/scripts/grok_bridge.py --help`
-- Syntax: `python3 -m py_compile skills/collaborating-with-grok/scripts/grok_bridge.py`
+- Smoke: `python3 <skill_dir>/scripts/grok_bridge.py --help`
+- Syntax: `python3 -m py_compile <skill_dir>/scripts/grok_bridge.py`
 - Models: `--list-models` → `success: true` (expect `grok-4.5` on 0.2.93)
 - Session: read-only prompt → `success: true`, `complete: true`, non-null `model`, `stop_reason: EndTurn`, resumable `SESSION_ID`
 - Auth: `grok login` or `XAI_API_KEY`

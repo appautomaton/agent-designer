@@ -2,9 +2,9 @@ Language: 中文 | [English](README.md)
 
 # Agent Designer
 
-面向 AI 编程 Agent 的可移植技能工作区 — 支持 Claude Code、Codex、Antigravity 和 Grok。
+面向 AI 编程 Agent 的可安装技能目录：支持 Claude Code、Codex、Antigravity 和 Grok。
 
-设计结构化、可复用的技能，让你的 Agent 拥有清晰的工作流程、安全的默认行为和多轮协作能力。克隆本仓库作为任何项目的起点，让 Agent 有章可循地工作，而不是自由发挥。
+结构化、可复用的技能，让你的 Agent 拥有清晰的工作流程、安全的默认行为和多轮协作能力。挑选所需技能，安装到你已在使用的宿主环境中，让 Agent 有章可循地工作，而不是自由发挥。
 
 ## 包含内容
 
@@ -26,10 +26,10 @@ Language: 中文 | [English](README.md)
 ## 快速开始
 
 > [!TIP]
-> 1)（可选）将本仓库作为模板：clone 后删除 git 历史（`rm -rf .git`），再重新初始化（`git init`）。
-> 2) 编写 `AGENTS.md` — 项目角色、约束、技术栈、安全规则。
->    - 如需添加 Issue 驱动工作流：让 Agent "将 `AGENTS.issues.template.md` 应用到 `AGENTS.md`"。
-> 3) 开始工作 — 让 Agent 创建计划、生成 Issue CSV，或与其他 Agent 协作。
+> 1) 从 `skills/` 中挑选所需技能。
+> 2) 按照 [`docs/setup/`](docs/setup/README.md) 中对应宿主的运行手册执行：安装、授权、验证。
+>    - 如需在项目中使用 Issue 驱动工作流：让 Agent "将 `AGENTS.issues.template.md` 应用到 `AGENTS.md`"。
+> 3) 开始工作。让 Agent 创建计划、生成 Issue CSV，或与其他 Agent 协作。
 >    - 示例："为 <目标> 创建计划和 Issue CSV。"
 
 ## 项目结构
@@ -41,7 +41,7 @@ skills/                          ← 技能源码（核心内容）
   collaborating-with-codex/      ← bridge 脚本 + SKILL.md + 参考文档 + 提示词模板
   collaborating-with-grok/       ← bridge 脚本 + SKILL.md + 参考文档（Grok CLI；实时 Web/X 搜索）
   issue-driven-workflow/              ← 计划/CSV 工作流 + 模板 + 脚本
-.codex/skills/                   ← 符号链接（Codex 接入层）
+docs/setup/                      ← 各宿主的安装运行手册
 AGENTS.md                        ← 项目专属规则
 AGENTS.issues.template.md        ← Issue 驱动工作流（叠加到 AGENTS.md）
 ```
@@ -58,7 +58,7 @@ AGENTS.issues.template.md        ← Issue 驱动工作流（叠加到 AGENTS.md
 
 - 本仓库以工作流为主 — 大多数变更为文本修改，而非代码。
 - Bridge 脚本封装 CLI 工具，返回结构化 JSON 并支持会话连续性。
-- `.claude/settings.json` 为所有 bridge 脚本预置了 `permissions.allow` 规则，避免宿主 Agent 在自动审批模式下把委托调用悄悄判为"高风险"而拒绝。详见各技能的 "Host-side approval" 章节。
+- bridge 脚本的授权规则按宿主记录在 [`docs/setup/`](docs/setup/README.md) 中，采用与安装位置无关的通配符形式。详见各技能的 "Host-side approval" 章节。
 - 技能可在 Codex 和 Claude Code 之间移植，仅需少量适配。
 - 如需直接运行 bridge 脚本，优先使用 `python3`。
 

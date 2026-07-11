@@ -198,15 +198,14 @@
   <section>
     <div class="wrap">
       <p class="eyebrow">Getting started</p>
-      <h2>Clone it, then make it yours</h2>
+      <h2>Install a skill into your agent</h2>
       <div class="printout">
         <button class="copy-btn" type="button" data-copy-target="clone-cmd">Copy</button>
-        <pre id="clone-cmd"><span class="muted"># optional: use as a template</span>
+        <pre id="clone-cmd"><span class="muted"># example: Claude Code, global install</span>
 git clone https://github.com/appautomaton/agent-designer.git
-cd agent-designer
-rm -rf .git &amp;&amp; git init</pre>
+cp -R agent-designer/skills/collaborating-with-grok ~/.claude/skills/</pre>
       </div>
-      <p class="section-intro" style="margin-top:1.25rem;">Then write your <code class="mono">AGENTS.md</code> and ask your agent to create a plan, generate an Issue CSV, or collaborate with another CLI.</p>
+      <p class="section-intro" style="margin-top:1.25rem;">Then approve and verify per the runbook for your harness: <a href="https://github.com/appautomaton/agent-designer/blob/main/docs/setup/claude-code.md">Claude Code</a> or <a href="https://github.com/appautomaton/agent-designer/blob/main/docs/setup/codex.md">Codex CLI</a>.</p>
     </div>
   </section>
 

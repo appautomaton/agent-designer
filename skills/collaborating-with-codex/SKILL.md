@@ -11,6 +11,8 @@ Use Codex CLI as an independent collaborator while the primary agent remains res
 
 The bridge script (`scripts/codex_bridge.py`) wraps `codex exec` in JSON mode, streams progress to stderr, returns structured JSON, and manages multi-turn continuity via `SESSION_ID`.
 
+Commands below write `<skill_dir>` for the absolute path of the directory containing this SKILL.md. Your harness reports that path when it loads the skill, for example `~/.claude/skills/collaborating-with-codex`. Substitute it before running.
+
 In Claude Code, run bridge calls in the background by default for non-trivial tasks:
 
 ```text
@@ -48,7 +50,7 @@ Codex has two separate network paths:
 
 Everything above governs the child Codex. The **host** agent's own permission layer gates the `python3 … codex_bridge.py` Bash call first — and under classifier-gated auto-approval (Claude Code `auto`/`dontAsk`, Codex non-interactive runs), a long-running script that spawns another agent over the codebase pattern-matches "high-risk" and can be **denied silently**: the delegation never starts. A host permission error instead of bridge JSON means the host blocked the bridge, not that Codex failed.
 
-- **Pre-authorize; don't rely on the classifier.** Claude Code host: add `"Bash(python3 skills/collaborating-with-codex/scripts/codex_bridge.py *)"` to `permissions.allow` in `.claude/settings.json` (this repo ships rules for all bridges). Rules are literal prefix matches — they must match how the command is actually invoked.
+- **Pre-authorize the bridge instead of relying on the classifier.** Claude Code host: add `"Bash(python3 *collaborating-with-codex*bridge.py*)"` to `permissions.allow` in your `settings.json`. The wildcard form keeps matching wherever the skill is installed. Sandboxed hosts also need `"python3 *collaborating-with-codex*bridge.py*"` in `sandbox.excludedCommands`, because sandbox network policy blocks the child CLI's API traffic even after the command is allowed. Install and approval runbooks: [docs/setup/](https://github.com/appautomaton/agent-designer/tree/main/docs/setup) in the source repo.
 - **Codex host: the sandbox is the second gate.** The child `codex` CLI needs API network, which the host sandbox blocks in `read-only` and `workspace-write`. Run the bridge call through an approved escalation, or knowingly grant network for that call.
 - **Never degrade silently.** If the host denies the bridge call, report it and propose the allowlist fix — don't substitute your own answer for the independent second opinion that was requested.
 
@@ -63,7 +65,7 @@ OUTPUT: Unified Diff Patch ONLY.
 EOF
 )"
 
-python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
+python3 <skill_dir>/scripts/codex_bridge.py \
   --cd "." \
   --PROMPT "$PROMPT"
 ```
@@ -71,7 +73,7 @@ python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
 For large or generated handoffs, write the prompt under `/tmp` and avoid argv and shell-quoting limits:
 
 ```bash
-python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
+python3 <skill_dir>/scripts/codex_bridge.py \
   --cd "." \
   --prompt-file /tmp/codex-prompt.md
 ```
@@ -94,16 +96,16 @@ For long-running calls, run the command in the host's background-command mode wh
 Capture `SESSION_ID` from the first response and pass it back:
 
 ```bash
-python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
+python3 <skill_dir>/scripts/codex_bridge.py \
   --cd "." \
   --PROMPT "Analyze the bug in foo()."
 
-python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
+python3 <skill_dir>/scripts/codex_bridge.py \
   --cd "." \
   --SESSION_ID "<id>" \
   --PROMPT "Now propose the smallest safe fix."
 
-python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
+python3 <skill_dir>/scripts/codex_bridge.py \
   --cd "." \
   --last \
   --PROMPT "Check edge cases before finalizing."
@@ -162,7 +164,7 @@ For read-only patch proposals, ask Codex for a unified diff and apply it only af
 
 ```bash
 git worktree add -b codex/fix /tmp/wt-fix HEAD
-python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
+python3 <skill_dir>/scripts/codex_bridge.py \
   --cd "/tmp/wt-fix" \
   --sandbox workspace-write \
   --PROMPT "Implement the focused fix and run the narrow verification."
@@ -177,12 +179,12 @@ Attach reference images with `--image` (repeatable). Codex also **generates** im
 ## Tune performance
 
 ```bash
-python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
+python3 <skill_dir>/scripts/codex_bridge.py \
   --cd "/project" \
   -c 'model_reasoning_effort="medium"' \
   --PROMPT "Analyze this small bug."
 
-python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
+python3 <skill_dir>/scripts/codex_bridge.py \
   --cd "/project" \
   --enable multi_agent \
   --PROMPT "Analyze these independent modules."
@@ -208,8 +210,8 @@ Key principles:
 
 ## Verification
 
-- Smoke test: `python3 skills/collaborating-with-codex/scripts/codex_bridge.py --help`
-- Syntax test: `python3 -m py_compile skills/collaborating-with-codex/scripts/codex_bridge.py`
+- Smoke test: `python3 <skill_dir>/scripts/codex_bridge.py --help`
+- Syntax test: `python3 -m py_compile <skill_dir>/scripts/codex_bridge.py`
 - Command-contract test: use a fake `codex` executable in `/tmp` to inspect forwarded argv.
 
 ## Collaboration State Capsule

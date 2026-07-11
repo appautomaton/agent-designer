@@ -7,7 +7,7 @@ When invoking `codex_bridge.py`, remember that your shell parses the command lin
 Markdown inline code uses backticks (`` `like/this` ``). In bash/zsh, backticks mean command substitution, even inside double quotes, so this breaks before Codex runs:
 
 ```bash
-python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
+python3 <skill_dir>/scripts/codex_bridge.py \
   --cd "." \
   --PROMPT "Analyze `tmp/raw.json` and summarize."
 ```
@@ -28,7 +28,7 @@ Set `as_of` to `YYYY-MM-DD`.
 EOF
 )"
 
-python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
+python3 <skill_dir>/scripts/codex_bridge.py \
   --cd "." \
   --PROMPT "$PROMPT"
 ```

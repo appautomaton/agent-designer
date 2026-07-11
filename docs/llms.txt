@@ -1,6 +1,6 @@
 # Agent Designer
 
-> A portable skills workspace that lets AI coding agents — Claude Code, Codex, Antigravity, and Grok — delegate work to each other through bridge scripts with session continuity, plus an issue-driven planning workflow.
+> A catalog of installable skills that lets AI coding agents (Claude Code, Codex, Antigravity, and Grok) delegate work to each other through bridge scripts with session continuity, plus an issue-driven planning workflow.
 
 Each collaboration skill pairs a bridge script with a playbook (SKILL.md plus reference docs). A bridge wraps its target CLI's headless/non-interactive mode, forwards a prompt, and returns structured JSON — the model that actually answered, a session ID for the next turn, and counts of commands run, files touched, and tool calls — so a calling agent can hand off a task and verify what happened rather than trust a summary.
 
@@ -8,6 +8,11 @@ Each collaboration skill pairs a bridge script with a playbook (SKILL.md plus re
 - [README](https://github.com/appautomaton/agent-designer/blob/main/README.md): project overview, skill list, getting-started steps
 - [AGENTS.md](https://github.com/appautomaton/agent-designer/blob/main/AGENTS.md): operating rules for agents working in this repo
 - [BACKLOG.md](https://github.com/appautomaton/agent-designer/blob/main/BACKLOG.md): deferred items, reviewed at session start
+
+## Setup
+- [Setup overview](https://github.com/appautomaton/agent-designer/blob/main/docs/setup/README.md): pick a harness, pick skills, placement guide
+- [Claude Code runbook](https://github.com/appautomaton/agent-designer/blob/main/docs/setup/claude-code.md): install, approve, verify for Claude Code hosts
+- [Codex runbook](https://github.com/appautomaton/agent-designer/blob/main/docs/setup/codex.md): install, approve, verify for Codex hosts
 
 ## Collaboration skills
 - [collaborating-with-claude](https://github.com/appautomaton/agent-designer/tree/main/skills/collaborating-with-claude): delegate to Claude Code CLI — review, diff read, consultation

@@ -7,7 +7,7 @@ How much authority to give Claude, and how to bring its work back.
 For diagnosis, architecture opinions, reviews, and research.
 
 ```bash
-python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
+python3 <skill_dir>/scripts/claude_bridge.py \
   --cd "/path/to/repo" \
   --permission-mode plan \
   --PROMPT "$PROMPT"
@@ -22,7 +22,7 @@ Ask for evidence, file paths, line numbers, and a compact recommendation. Verify
 When the prompt is large, generated, or shell-sensitive (backticks, `$VARS`), pass it via a file instead of argv:
 
 ```bash
-python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
+python3 <skill_dir>/scripts/claude_bridge.py \
   --cd "/path/to/repo" \
   --permission-mode plan \
   --prompt-file /tmp/claude-handoff.md
@@ -47,7 +47,7 @@ Give write access only in an isolated worktree, preferably under `/tmp`. **This 
 ```bash
 git worktree add -b claude/<task-name> /tmp/claude-<task-name> HEAD
 
-python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
+python3 <skill_dir>/scripts/claude_bridge.py \
   --cd "/tmp/claude-<task-name>" \
   --permission-mode acceptEdits \
   --PROMPT "$PROMPT"

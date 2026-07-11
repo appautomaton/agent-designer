@@ -7,11 +7,11 @@ Use when a task splits into independent runs, or when write access must be isola
 For independent analyses that don't modify files, run multiple bridge calls concurrently. In Claude Code, set `run_in_background: true` on each Bash tool call and monitor each via the task-output view (the bridge streams timestamped progress to stderr).
 
 ```bash
-python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
+python3 <skill_dir>/scripts/claude_bridge.py \
   --cd "/project" --permission-mode plan \
   --PROMPT "Analyze the auth module for correctness risks."
 
-python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
+python3 <skill_dir>/scripts/claude_bridge.py \
   --cd "/project" --permission-mode plan \
   --PROMPT "Analyze the payment module for correctness risks."
 ```
@@ -23,7 +23,7 @@ After all complete, synthesize: contradictions, shared dependencies, gaps no run
 Claude can spawn its own subagents for independent lanes via `--agents` (inline JSON) or `--agent <name>`:
 
 ```bash
-python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
+python3 <skill_dir>/scripts/claude_bridge.py \
   --cd "/project" --permission-mode plan \
   --PROMPT "Use parallel subagents: one for security risks, one for test gaps, one for maintainability. Wait for all, then summarize only final findings with file references."
 ```
@@ -38,7 +38,7 @@ When multiple write-capable runs are needed, use one git worktree per task (cano
 git worktree add -b claude/auth-fix /tmp/wt-auth HEAD
 git worktree add -b claude/perf-fix /tmp/wt-perf HEAD
 
-python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
+python3 <skill_dir>/scripts/claude_bridge.py \
   --cd "/tmp/wt-auth" --permission-mode acceptEdits \
   --PROMPT "Fix the auth bug in src/auth/login.py. Run the narrow verification."
 ```

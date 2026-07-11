@@ -7,7 +7,7 @@ Use these to decide how much authority to give grok and how to bring its work ba
 For diagnosis, architecture opinions, reviews, and code research.
 
 ```bash
-python3 skills/collaborating-with-grok/scripts/grok_bridge.py \
+python3 <skill_dir>/scripts/grok_bridge.py \
   --cd "/path/to/repo" \
   --tools "read_file,grep,list_dir" \
   --PROMPT "$PROMPT"
@@ -20,7 +20,7 @@ Ask grok for evidence, file paths, line numbers, and a compact recommendation. T
 When the task needs current facts, releases, or X posts.
 
 ```bash
-python3 skills/collaborating-with-grok/scripts/grok_bridge.py \
+python3 <skill_dir>/scripts/grok_bridge.py \
   --cd "/path/to/repo" \
   --disallowed-tools "run_terminal_cmd,search_replace" \
   --PROMPT "$PROMPT"
@@ -35,7 +35,7 @@ When a generated plan, review packet, or issue bundle is too large or too shell-
 **Whole prompt in the file** — the file *is* the instruction:
 
 ```bash
-python3 skills/collaborating-with-grok/scripts/grok_bridge.py \
+python3 <skill_dir>/scripts/grok_bridge.py \
   --cd "/path/to/repo" \
   --tools "read_file,grep,list_dir" \
   --prompt-file prompts/grok-handoff.md
@@ -46,7 +46,7 @@ Relative `--prompt-file` and `--stdin-file` paths resolve against `--cd`; use an
 **Context file + a short instruction** — author the context/plan once, then steer it with text. `--PROMPT` carries the ask; the bridge combines it with the context in a temporary native prompt file because Grok 0.2.93 ignores stdin when `-p` is present:
 
 ```bash
-python3 skills/collaborating-with-grok/scripts/grok_bridge.py \
+python3 <skill_dir>/scripts/grok_bridge.py \
   --cd "/path/to/repo" \
   --tools "read_file,grep,list_dir" \
   --stdin-file /tmp/grok-context.md \
@@ -72,7 +72,7 @@ Grant write access only in an isolated worktree, preferably outside the parent r
 ```bash
 git worktree add -b grok/<task-name> /tmp/grok-<task-name> HEAD
 
-python3 skills/collaborating-with-grok/scripts/grok_bridge.py \
+python3 <skill_dir>/scripts/grok_bridge.py \
   --cd "/tmp/grok-<task-name>" \
   --always-approve --sandbox workspace \
   --prompt-file prompts/grok-task.md

@@ -2,9 +2,9 @@ Language: English | [中文](README.zh-CN.md)
 
 # Agent Designer
 
-A portable skills workspace for AI coding agents — Claude Code, Codex, Antigravity, and Grok.
+A catalog of installable skills for AI coding agents: Claude Code, Codex, Antigravity, and Grok.
 
-Design structured, reusable skills that give your agents clear workflows, safe defaults, and multi-turn collaboration capabilities. Clone this repo as a starting point for any project where you want agents to work methodically rather than freestyle.
+Structured, reusable skills that give your agents clear workflows, safe defaults, and multi-turn collaboration capabilities. Install the ones you want into the harness you already use, and your agents work methodically rather than freestyle.
 
 ## What's inside
 
@@ -26,10 +26,10 @@ Design structured, reusable skills that give your agents clear workflows, safe d
 ## Getting started
 
 > [!TIP]
-> 1) (Optional) Use this repo as a template: clone it, remove git history (`rm -rf .git`), re-init (`git init`).
-> 2) Write your `AGENTS.md` — project role, constraints, stack, safety rules.
->    - To add issue-driven workflow: ask your agent to "apply `AGENTS.issues.template.md` on top of `AGENTS.md`".
-> 3) Start working — ask your agent to create a plan, generate an Issue CSV, or collaborate with another agent.
+> 1) Pick the skills you want from `skills/`.
+> 2) Follow the runbook for your harness in [`docs/setup/`](docs/setup/README.md): install, approve, verify.
+>    - To add the issue-driven workflow to a project: ask your agent to "apply `AGENTS.issues.template.md` on top of `AGENTS.md`".
+> 3) Start working. Ask your agent to create a plan, generate an Issue CSV, or collaborate with another agent.
 >    - Example: "Create a plan and Issue CSV for <goal>."
 
 ## Project structure
@@ -41,7 +41,7 @@ skills/                          ← skill source (the real content)
   collaborating-with-codex/      ← bridge script + SKILL.md + references + prompt recipes
   collaborating-with-grok/       ← bridge script + SKILL.md + references (Grok CLI; live web/X search)
   issue-driven-workflow/              ← plan/CSV workflow + templates + scripts
-.codex/skills/                   ← symlinks (Codex wiring)
+docs/setup/                      ← install runbooks per harness
 AGENTS.md                        ← project-specific rules
 AGENTS.issues.template.md        ← issue-driven workflow (apply on top of AGENTS.md)
 ```
@@ -58,7 +58,7 @@ Each skill follows **progressive disclosure**:
 
 - This repo is workflow-first — most changes are text, not code.
 - Bridge scripts wrap CLI tools and return structured JSON with session continuity.
-- `.claude/settings.json` ships `permissions.allow` rules for all bridge scripts, so a host agent in an auto-approval mode can't silently deny the delegation as "high-risk". See the "Host-side approval" section in each skill.
+- Approval rules for the bridge scripts are documented per harness in [`docs/setup/`](docs/setup/README.md), in wildcard forms that work at any install location. See the "Host-side approval" section in each skill.
 - Skills are portable across Codex and Claude Code with minimal adaptation.
 - If invoking bridge scripts directly, prefer `python3`.
 

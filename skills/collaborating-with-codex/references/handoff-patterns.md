@@ -7,7 +7,7 @@ Use these patterns to decide how much authority to give Codex and how to bring i
 Use for diagnosis, architecture opinions, reviews, and research.
 
 ```bash
-python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
+python3 <skill_dir>/scripts/codex_bridge.py \
   --cd "/path/to/repo" \
   --sandbox read-only \
   --PROMPT "$PROMPT"
@@ -20,7 +20,7 @@ Ask Codex for evidence, file paths, line numbers, and a compact recommendation. 
 Use when a generated plan, review packet, or issue bundle is too large or too shell-sensitive for argv.
 
 ```bash
-python3 skills/collaborating-with-codex/scripts/codex_bridge.py \
+python3 <skill_dir>/scripts/codex_bridge.py \
   --cd "/path/to/repo" \
   --sandbox read-only \
   --prompt-file /tmp/codex-handoff.md
@@ -47,7 +47,7 @@ Use write access only in an isolated worktree, preferably under `/tmp`.
 ```bash
 git worktree add -b codex/<task-name> /tmp/codex-<task-name> HEAD
 
-python3 /path/to/skills/collaborating-with-codex/scripts/codex_bridge.py \
+python3 /path/to/<skill_dir>/scripts/codex_bridge.py \
   --cd "/tmp/codex-<task-name>" \
   --sandbox workspace-write \
   --PROMPT "$PROMPT"

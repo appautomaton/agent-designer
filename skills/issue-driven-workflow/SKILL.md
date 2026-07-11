@@ -29,7 +29,7 @@ plan → issues → implement → test → review
 5. Ask: "Reply CONFIRM to write the plan file."
 6. On confirmation:
    ```bash
-   python3 .codex/skills/issue-driven-workflow/scripts/create_plan.py \
+   python3 <skill_dir>/scripts/create_plan.py \
      --task "<title>" --complexity <simple|medium|complex>
    ```
 7. Do not edit code while planning.
@@ -42,7 +42,7 @@ plan → issues → implement → test → review
 4. Order by dependency chain. Set `Dependencies` so execution order is unambiguous.
 5. Validate:
    ```bash
-   python3 .codex/skills/issue-driven-workflow/scripts/validate_issues_csv.py <issues.csv>
+   python3 <skill_dir>/scripts/validate_issues_csv.py <issues.csv>
    ```
 
 ## Executing the CSV (autonomous)
@@ -69,7 +69,7 @@ If a row is too large, split it. If a row fails, fix it or flag it. If in a git 
 | `list_plans.py` | List existing plans (supports `--query`, `--json`) |
 | `validate_issues_csv.py` | Validate Issue CSV schema and status values |
 
-Run with `--help` first. Scripts live in `scripts/` relative to this skill.
+Commands above write `<skill_dir>` for the absolute path of the directory containing this SKILL.md. Your harness reports that path when it loads the skill. Substitute it before running.
 
 ## Naming
 

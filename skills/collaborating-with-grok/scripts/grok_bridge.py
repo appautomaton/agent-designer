@@ -127,7 +127,7 @@ def permission_mode_error(mode: Optional[str]) -> Optional[str]:
         "The bridge refuses to provide a false authority or safety signal. Use `default`, "
         "explicit `--allow`/`--deny` rules, or `--always-approve`/`bypassPermissions` only "
         "with user consent. For acceptEdits/dontAsk policy, configure `defaultMode` in the "
-        "applicable `.claude/settings.json`."
+        "applicable Claude Code `settings.json`."
     )
 
 

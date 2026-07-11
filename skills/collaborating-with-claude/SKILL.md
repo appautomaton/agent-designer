@@ -11,11 +11,13 @@ Drive Claude Code headlessly as an independent collaborator while the calling ag
 
 The bridge (`scripts/claude_bridge.py`) wraps `claude --print`, streams progress to stderr, returns structured JSON with telemetry, and manages multi-turn continuity via `SESSION_ID`. Always go through the bridge — don't invoke `claude` directly — so output parsing and session handling stay consistent.
 
+Commands below write `<skill_dir>` for the absolute path of the directory containing this SKILL.md. Your harness reports that path when it loads the skill, for example `~/.claude/skills/collaborating-with-claude`. Substitute it before running.
+
 In Claude Code, run non-trivial calls in the background and watch the stderr progress:
 
 ```text
 Bash tool call:
-  command: python3 skills/collaborating-with-claude/scripts/claude_bridge.py --cd "/project" --PROMPT "Analyze auth flow in src/auth/"
+  command: python3 <skill_dir>/scripts/claude_bridge.py --cd "/project" --PROMPT "Analyze auth flow in src/auth/"
   run_in_background: true
 ```
 
@@ -39,7 +41,7 @@ Network is governed by tool policy, not an OS sandbox: `plan` mode denies `WebFe
 
 Everything above governs the child Claude. The **host** agent's own permission layer gates the `python3 … claude_bridge.py` Bash call first — and under classifier-gated auto-approval (Claude Code `auto`/`dontAsk`, Codex non-interactive runs), a long-running script that spawns another agent over the codebase pattern-matches "high-risk" and can be **denied silently**: the delegation never starts. A host permission error instead of bridge JSON means the host blocked the bridge, not that Claude failed.
 
-- **Pre-authorize; don't rely on the classifier.** Claude Code host: add `"Bash(python3 skills/collaborating-with-claude/scripts/claude_bridge.py *)"` to `permissions.allow` in `.claude/settings.json` (this repo ships rules for all bridges). Rules are literal prefix matches — they must match how the command is actually invoked. Grok host: same idea via `--allow "Bash(python3 skills/…)"`.
+- **Pre-authorize the bridge instead of relying on the classifier.** Claude Code host: add `"Bash(python3 *collaborating-with-claude*bridge.py*)"` to `permissions.allow` in your `settings.json`. The wildcard form keeps matching wherever the skill is installed. Sandboxed hosts also need `"python3 *collaborating-with-claude*bridge.py*"` in `sandbox.excludedCommands`, because sandbox network policy blocks the child CLI's API traffic even after the command is allowed. Grok host: pass the same rule via `--allow`. Install and approval runbooks: [docs/setup/](https://github.com/appautomaton/agent-designer/tree/main/docs/setup) in the source repo.
 - **Codex host: the sandbox is the second gate.** Both `read-only` and `workspace-write` block shell network, so the child CLI can't reach its API at all. Run the bridge call through an approved escalation, or knowingly grant network for that call.
 - **Never degrade silently.** If the host denies the bridge call, report it and propose the allowlist fix — don't substitute your own answer for the independent second opinion that was requested.
 
@@ -57,7 +59,7 @@ Review src/auth.py around login() and propose fixes.
 OUTPUT: Unified Diff Patch ONLY.
 EOF
 )"
-python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
+python3 <skill_dir>/scripts/claude_bridge.py \
   --cd "." --model sonnet --permission-mode plan --PROMPT "$PROMPT" --output-format stream-json
 ```
 
@@ -71,15 +73,15 @@ Capture `SESSION_ID` from the first call and pass it back (selectors are mutuall
 
 ```bash
 # Turn 1
-python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
+python3 <skill_dir>/scripts/claude_bridge.py \
   --cd "." --model sonnet --PROMPT "Analyze the bug in foo()." --output-format stream-json
 
 # Turn 2 — resume by ID (use the same --cd)
-python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
+python3 <skill_dir>/scripts/claude_bridge.py \
   --cd "." --model sonnet --SESSION_ID "<id>" --PROMPT "Propose a fix." --output-format stream-json
 
 # Or resume the most recent session in this directory
-python3 skills/collaborating-with-claude/scripts/claude_bridge.py \
+python3 <skill_dir>/scripts/claude_bridge.py \
   --cd "." --model sonnet --continue --PROMPT "What about edge cases?" --output-format stream-json
 ```
 
@@ -109,8 +111,8 @@ Quick starters in [prompt-template.md](assets/prompt-template.md); composable XM
 
 ## Verification
 
-- Smoke: `python3 skills/collaborating-with-claude/scripts/claude_bridge.py --help`
-- Syntax: `python3 -m py_compile skills/collaborating-with-claude/scripts/claude_bridge.py`
+- Smoke: `python3 <skill_dir>/scripts/claude_bridge.py --help`
+- Syntax: `python3 -m py_compile <skill_dir>/scripts/claude_bridge.py`
 - Session: run a prompt with `--output-format stream-json`; confirm JSON has `success: true`, a `SESSION_ID`, and telemetry (`subtype`/`total_cost_usd`/`usage`/`num_turns`); failures exit non-zero.
 - Ensure Claude is logged in (`claude` then `/login`), or set `ANTHROPIC_API_KEY` (required for `--bare`).
 

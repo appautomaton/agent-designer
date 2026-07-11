@@ -2,6 +2,14 @@
 
 Deferred work items. Review at session start; delete items when done.
 
+## docs/setup: dedicated Grok and Antigravity host runbooks
+
+The setup docs cover Claude Code and Codex hosts. Grok CLI reads a project's `.claude/skills/` (see the config section of `skills/collaborating-with-grok/references/cli-reference.md`), so a Claude Code project install already serves Grok hosts. Write dedicated runbooks when Grok or agy hosting gets real use.
+
+## Package as a Claude Code plugin
+
+A plugin (marketplace plus `/plugin install`) is the first-class drop-in install path for Claude Code and would replace the manual copy step in `docs/setup/claude-code.md`. Evaluate once the à la carte setup docs have settled.
+
 ## collaborating-with-antigravity: reference parity
 
 The antigravity skill ships 3 reference files where its siblings (claude, codex, grok) ship 9 — missing `prompt-blocks`, `prompt-recipes`, `patterns`, `prompt-antipatterns`, and `handoff-patterns`. Worth a deliberate authoring pass **if agy delegation gets heavy use**; don't copy-paste from siblings — agy is advisory-first (no writes by convention) so the recipes differ. Note: `parallel.md` is intentionally absent — the bridge serializes calls with a file lock.
