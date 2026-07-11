@@ -1,82 +1,43 @@
 #!/usr/bin/env python3
-"""Validate issues CSV schema and required fields."""
+"""Validate an Issue CSV: schema, statuses, dependencies, and coherence.
+
+Reports every problem in one run, with physical line numbers that stay
+accurate when quoted fields span multiple lines.
+"""
 
 from __future__ import annotations
 
-import csv
+import argparse
 import sys
 from pathlib import Path
 
-REQUIRED_COLUMNS = [
-    "ID",
-    "Title",
-    "Description",
-    "Acceptance",
-    "Test_Method",
-    "Tools",
-    "Dev_Status",
-    "Review1_Status",
-    "Regression_Status",
-    "Files",
-    "Dependencies",
-    "Notes",
-]
-
-STATUS_FIELDS = {"Dev_Status", "Review1_Status", "Regression_Status"}
-ALLOWED_STATUS = {"TODO", "DOING", "DONE"}
-
-
-def fail(message: str) -> int:
-    print(f"error: {message}", file=sys.stderr)
-    return 1
+from issue_utils import read_issues, validate_issues
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        return fail("usage: validate_issues_csv.py <issues.csv>")
+    parser = argparse.ArgumentParser(
+        description="Validate an Issue CSV against the column spec and semantic rules."
+    )
+    parser.add_argument("csv_path", help="Path to the issues CSV file.")
+    args = parser.parse_args()
 
-    path = Path(sys.argv[1])
+    path = Path(args.csv_path)
     if not path.exists():
-        return fail(f"file not found: {path}")
+        print(f"error: file not found: {path}", file=sys.stderr)
+        return 1
 
-    rows = []
-    with path.open(newline="", encoding="utf-8") as handle:
-        reader = csv.reader(handle)
-        for row in reader:
-            if any(cell.strip() for cell in row):
-                rows.append(row)
+    header, rows, start_lines = read_issues(path)
+    errors, warnings = validate_issues(header, rows, start_lines)
 
-    if not rows:
-        return fail("csv is empty")
+    for message in errors:
+        print(f"error: {message}", file=sys.stderr)
+    for message in warnings:
+        print(f"warning: {message}", file=sys.stderr)
+    print(f"{len(errors)} error(s), {len(warnings)} warning(s)", file=sys.stderr)
 
-    header = rows[0]
-    if header != REQUIRED_COLUMNS:
-        return fail(
-            "invalid header. expected: "
-            + ",".join(REQUIRED_COLUMNS)
-            + " | got: "
-            + ",".join(header)
-        )
-
-    seen_ids: set[str] = set()
-    for idx, row in enumerate(rows[1:], start=2):
-        if len(row) != len(REQUIRED_COLUMNS):
-            return fail(f"row {idx}: expected {len(REQUIRED_COLUMNS)} columns, got {len(row)}")
-
-        row_data = dict(zip(REQUIRED_COLUMNS, row))
-        for col, value in row_data.items():
-            if not value.strip():
-                return fail(f"row {idx}: '{col}' is empty")
-            if col in STATUS_FIELDS and value.strip() not in ALLOWED_STATUS:
-                return fail(
-                    f"row {idx}: '{col}' must be one of {sorted(ALLOWED_STATUS)}, got '{value}'"
-                )
-
-        issue_id = row_data["ID"].strip()
-        if issue_id in seen_ids:
-            return fail(f"row {idx}: duplicate ID '{issue_id}'")
-        seen_ids.add(issue_id)
-
+    if errors:
+        return 1
+    print(f"ok: {path} ({len(rows)} rows)")
     return 0
 
 

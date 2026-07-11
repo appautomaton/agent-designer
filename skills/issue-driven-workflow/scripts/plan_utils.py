@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 from datetime import datetime
 
@@ -15,16 +16,29 @@ _TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$")
 
 
 def get_repo_root(start: Path | None = None) -> Path:
-    """Find the repo root by walking up to .git or AGENTS.md."""
+    """Find the repo root: the nearest .git ancestor, then AGENTS.md as a
+    fallback only when no .git exists anywhere above."""
     path = (start or Path.cwd()).resolve()
-    for candidate in [path, *path.parents]:
-        if (candidate / ".git").exists() or (candidate / "AGENTS.md").exists():
+    candidates = [path, *path.parents]
+    for candidate in candidates:
+        if (candidate / ".git").exists():
             return candidate
+    for candidate in candidates:
+        if (candidate / "AGENTS.md").exists():
+            return candidate
+    print(
+        f"warning: no .git or AGENTS.md found above {path}, using it as the root",
+        file=sys.stderr,
+    )
     return path
 
 
 def get_plans_dir() -> Path:
-    return get_repo_root() / "plan"
+    root = get_repo_root()
+    legacy = root / "plan"
+    if legacy.is_dir():
+        return legacy
+    return root / "plans"
 
 
 def get_issues_dir() -> Path:
@@ -67,18 +81,19 @@ def format_yaml_value(value: str) -> str:
         not value
         or value.strip() != value
         or "\n" in value
-        or any(ch in value for ch in (":", "#", "{", "}", "[", "]", ","))
+        or value[0] in ("\"", "'")
+        or any(ch in value for ch in (":", "#", "{", "}", "[", "]", ",", "\\"))
     )
     if needs_quotes:
-        escaped = value.replace('"', "\\\"")
+        escaped = value.replace("\\", "\\\\").replace('"', "\\\"")
         return f'"{escaped}"'
     return value
 
 
 def replace_placeholders(body: str, timestamp: str, slug: str) -> str:
-    body = body.replace("issues/<YYYY-MM-DD_HH-mm-ss>-<slug>.csv", f"issues/{timestamp}-{slug}.csv")
-    body = body.replace("<YYYY-MM-DD_HH-mm-ss>", timestamp)
-    body = body.replace("<slug>", slug)
+    combined = f"{timestamp}-{slug}"
+    body = body.replace("issues/<YYYY-MM-DD_HH-mm-ss>-<slug>.csv", f"issues/{combined}.csv")
+    body = body.replace("<YYYY-MM-DD_HH-mm-ss>-<slug>", combined)
     return body
 
 
@@ -109,7 +124,7 @@ def parse_frontmatter(path: Path) -> dict:
             key = key.strip()
             value = value.strip()
             if value and len(value) >= 2 and value[0] == value[-1] and value[0] in ("\"", "'"):
-                value = value[1:-1]
+                value = value[1:-1].replace("\\\"", "\"").replace("\\\\", "\\")
             data[key] = value
 
     raise ValueError("Frontmatter must end with '---'.")

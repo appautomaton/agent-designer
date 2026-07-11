@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 
 from plan_utils import get_plans_dir, parse_frontmatter
 
@@ -27,9 +28,12 @@ def main() -> int:
     for path in sorted(plans_dir.glob("*.md")):
         try:
             data = parse_frontmatter(path)
-        except ValueError:
+        except ValueError as exc:
+            print(f"warning: skipped {path}: {exc}", file=sys.stderr)
             continue
         if not REQUIRED_KEYS.issubset(data.keys()):
+            missing = ", ".join(sorted(REQUIRED_KEYS - set(data.keys())))
+            print(f"warning: skipped {path}: missing {missing}", file=sys.stderr)
             continue
         task = data.get("task", "")
         created_at = data.get("created_at", "")

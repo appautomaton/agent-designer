@@ -85,11 +85,17 @@ def main() -> int:
 
     body = read_body(args)
     if body is None:
-        raise SystemExit("Provide --body-file, stdin, or --template to supply plan content.")
+        raise SystemExit(
+            "No plan body. Provide it via --body-file <path>, stdin (heredoc), "
+            "or --template for the blank scaffold."
+        )
 
     body = body.strip()
     if not body:
-        raise SystemExit("Plan body cannot be empty.")
+        raise SystemExit(
+            "Plan body is empty. Provide it via --body-file <path>, stdin "
+            "(heredoc), or --template for the blank scaffold."
+        )
     if body.lstrip().startswith("---"):
         raise SystemExit("Plan body should not include frontmatter.")
 
