@@ -9,8 +9,9 @@ E2E loop = plan → issues → implement → test → review → commit → regr
 - Plans must include: steps, tests, risks, and rollback/safety notes.
 
 ## Issue CSV guidelines
-- Every row must include: ID, Title, Description, Acceptance, Test_Method, Tools, Dev_Status, Review1_Status, Regression_Status, Files, Dependencies, Notes.
+- Every row must include: ID, Title, Description, Acceptance, Test_Method, Tools, Dev_Status, Review_Status, Regression_Status, Files, Dependencies, Notes.
 - Status values: TODO | DOING | DONE (never percentages).
+- Update row status through the skill's `update_issue.py`; never string-edit the CSV.
 - If a task lacks a test method, add one or flag it as a risk.
 - One plan maps to one Issue CSV unless explicitly split.
 - See the `issue-driven-workflow` skill references for column definitions and testing policy.

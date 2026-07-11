@@ -32,10 +32,11 @@ complexity: <simple|medium|complex>
 2. Phase 2 — <description>
 
 ## Tests & Verification
-<!-- Map each requirement to its test method. Use the narrowest reliable method. -->
+<!-- Map each requirement to its test method. Use the narrowest reliable method,
+     and match the method to the files each change touches. -->
 - Login with valid token -> `pytest tests/test_auth.py -k test_valid_login`
 - Login with expired token -> `pytest tests/test_auth.py -k test_expired_token`
-- UI renders dashboard -> manual: open /dashboard, verify layout
+- Dashboard renders after login -> `npx playwright test tests/dashboard.spec.ts`
 
 ## Issue CSV
 - Path: issues/<YYYY-MM-DD_HH-mm-ss>-<slug>.csv

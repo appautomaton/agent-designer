@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a repo-local plan markdown file under ./plan."""
+"""Create a repo-local plan markdown file under ./plans."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def read_body(args: argparse.Namespace) -> str | None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Create a plan file under ./plan.")
+    parser = argparse.ArgumentParser(description="Create a plan file under ./plans.")
     parser.add_argument("--task", required=True, help="Short task/title for the plan.")
     parser.add_argument(
         "--complexity",
