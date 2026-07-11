@@ -31,3 +31,7 @@ tmp/
 
 # Antigravity CLI project wiring (created by agy in the workspace)
 .antigravitycli/
+
+# Local agent wiring (install skills per docs/setup/)
+.claude/
+.codex/
