@@ -11,7 +11,7 @@ Use Codex CLI as an independent collaborator while the primary agent remains res
 
 The bridge script (`scripts/codex_bridge.py`) wraps `codex exec` in JSON mode, streams progress to stderr, returns structured JSON, and manages multi-turn continuity via `SESSION_ID`.
 
-Commands below write `<skill_dir>` for the absolute path of the directory containing this SKILL.md. Your harness reports that path when it loads the skill, for example `~/.claude/skills/collaborating-with-codex`. Substitute it before running.
+Commands below write `<skill_dir>` for the absolute path of the directory containing this SKILL.md. Your harness usually reports that path when it loads the skill. If it does not, use this SKILL.md's own location. Substitute it before running, for example `~/.claude/skills/collaborating-with-codex`.
 
 In Claude Code, run bridge calls in the background by default for non-trivial tasks:
 

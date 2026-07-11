@@ -25,6 +25,7 @@ rm -rf ~/.claude/skills/<skill-name>/scripts/__pycache__
 Symlink variant, where `git pull` in the clone updates the install:
 
 ```bash
+mkdir -p ~/.claude/skills
 ln -s ~/src/agent-designer/skills/<skill-name> ~/.claude/skills/<skill-name>
 ```
 
@@ -55,7 +56,7 @@ Bridge skills spawn another agent CLI. Under classifier-gated auto-approval, tha
 }
 ```
 
-Add one pair of entries per installed bridge skill, substituting the skill name in both patterns. The two halves do different jobs. The `permissions.allow` rule pre-approves the Bash call, and its wildcard form keeps matching wherever the skill is installed. The `sandbox.excludedCommands` entry matters on sandboxed hosts, where sandbox network policy blocks the child CLI's API traffic even after the command itself is allowed.
+If the settings file already exists, merge these entries into it rather than replacing the file. Add one pair of entries per installed bridge skill, substituting the skill name in both patterns. The two halves do different jobs. The `permissions.allow` rule pre-approves the Bash call, and its wildcard form keeps matching wherever the skill is installed. The `sandbox.excludedCommands` entry matters on sandboxed hosts, where sandbox network policy blocks the child CLI's API traffic even after the command itself is allowed.
 
 `issue-driven-workflow` runs local scripts only and needs no entries. An optional convenience rule is `"Bash(python3 *issue-driven-workflow/scripts/*)"`.
 

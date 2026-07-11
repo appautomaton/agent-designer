@@ -8,12 +8,12 @@ All columns are required and must be populated:
 
 | Column | Description |
 |---|---|
-| ID | Unique issue ID, letters then digits (A1, A2, ...) |
+| ID | Unique issue ID, uppercase letters then digits (A1, A2, ...) |
 | Title | Short title |
 | Description | Scope and boundary |
 | Acceptance | Done criteria |
 | Test_Method | How to verify (command, tool, or manual) |
-| Tools | MCP tool in `server:tool` format, or `manual`/`none` |
+| Tools | MCP tool to use while implementing or verifying the row, in `server:tool` format, or `manual`/`none` |
 | Dev_Status | TODO \| DOING \| DONE |
 | Review_Status | TODO \| DOING \| DONE |
 | Regression_Status | TODO \| DOING \| DONE |

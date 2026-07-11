@@ -14,7 +14,7 @@ REQUIRED_KEYS = {"task", "created_at", "complexity"}
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="List plan summaries from ./plan.")
+    parser = argparse.ArgumentParser(description="List plan summaries from ./plans.")
     parser.add_argument("--query", help="Case-insensitive substring to filter task/path.")
     parser.add_argument("--json", action="store_true", help="Emit JSON output.")
     args = parser.parse_args()

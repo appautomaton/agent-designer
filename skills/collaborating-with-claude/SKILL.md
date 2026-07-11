@@ -11,7 +11,7 @@ Drive Claude Code headlessly as an independent collaborator while the calling ag
 
 The bridge (`scripts/claude_bridge.py`) wraps `claude --print`, streams progress to stderr, returns structured JSON with telemetry, and manages multi-turn continuity via `SESSION_ID`. Always go through the bridge — don't invoke `claude` directly — so output parsing and session handling stay consistent.
 
-Commands below write `<skill_dir>` for the absolute path of the directory containing this SKILL.md. Your harness reports that path when it loads the skill, for example `~/.claude/skills/collaborating-with-claude`. Substitute it before running.
+Commands below write `<skill_dir>` for the absolute path of the directory containing this SKILL.md. Your harness usually reports that path when it loads the skill. If it does not, use this SKILL.md's own location. Substitute it before running, for example `~/.codex/skills/collaborating-with-claude`.
 
 In Claude Code, run non-trivial calls in the background and watch the stderr progress:
 

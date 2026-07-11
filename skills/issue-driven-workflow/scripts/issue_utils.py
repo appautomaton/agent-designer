@@ -131,7 +131,7 @@ def validate_issues(header, rows, start_lines):
         if issue_id:
             if not _ID_RE.match(issue_id):
                 errors.append(
-                    f"{loc}: ID '{issue_id}' must be letters then digits, like A1"
+                    f"{loc}: ID '{issue_id}' must be uppercase letters then digits, like A1"
                 )
             if issue_id in ids:
                 errors.append(

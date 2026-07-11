@@ -1,6 +1,6 @@
 ---
 name: issue-driven-workflow
-description: Turn a large task into a persistent plan file and a trackable Issue CSV, then execute the issues autonomously with per-row status updates. Use when work must survive across sessions or hand off between agents, or when you need an auditable record of multi-step execution. Do not use for single-session tasks that your harness's built-in plan or todo tracking already covers.
+description: Turn a large task into a persistent plan file and a trackable Issue CSV (local files, not an external issue tracker), then execute the issues autonomously with per-row status updates. Use when work must survive across sessions or hand off between agents, when you need an auditable record of multi-step execution, or to resume a plans/ and issues/ pair from an earlier session. Do not use for single-session tasks that your harness's built-in plan or todo tracking already covers.
 metadata:
   short-description: Plan file → Issue CSV → tracked autonomous execution
 ---
@@ -22,7 +22,9 @@ plan → issues → implement → test → review
 
 ## Paths
 
-Commands below write `<skill_dir>` for the absolute path of the directory containing this SKILL.md. Your harness reports that path when it loads the skill. Substitute it before running. Artifacts land in the target project at its root: plans in `plans/`, issue CSVs in `issues/`.
+Commands below write `<skill_dir>` for the absolute path of the directory containing this SKILL.md. Your harness usually reports that path when it loads the skill. If it does not, use this SKILL.md's own location. Substitute it before running.
+
+Run the scripts from inside the target project. They resolve the project root from the working directory (nearest `.git`, then `AGENTS.md`), and artifacts land at that root: plans in `plans/`, issue CSVs in `issues/`.
 
 ## Planning (interactive)
 
@@ -51,7 +53,7 @@ Commands below write `<skill_dir>` for the absolute path of the directory contai
 
 ## Executing the CSV (autonomous)
 
-The CSV is your execution state. Read it and update it through the scripts, and keep driving forward. Never string-edit the CSV: quoting rules and repeated status cells make hand edits corruption-prone.
+The CSV is your execution state. Read it and update it through the scripts, and keep driving forward. Never string-edit the CSV: quoting rules and repeated status cells make hand edits corruption-prone. If validation reports the file itself as broken, rebuild it instead: correct the drafted rows and rerun `create_issues.py` with `--overwrite`.
 
 1. Pick work: `python3 <skill_dir>/scripts/update_issue.py <csv> --next`
 2. Mark it started: `python3 <skill_dir>/scripts/update_issue.py <csv> --id A2 --dev-status DOING`
@@ -59,7 +61,7 @@ The CSV is your execution state. Read it and update it through the scripts, and 
 4. When `Acceptance` is met and `Test_Method` passes, set `--id A2 --dev-status DONE`.
 5. Self-review, then set `--id A2 --review-status DONE`. The script rejects incoherent transitions, for example review marked DONE before implementation.
 6. Immediately pick the next row with `--next` and keep going.
-7. After all rows are DONE, run the regression pass and set `--regression-status DONE` per row.
+7. After all rows are DONE, run the regression pass and set `--id <ID> --regression-status DONE` per row.
 8. Report progress briefly as you complete rows.
 9. Only stop for genuinely blocking unknowns that affect correctness, safety, or irreversible actions.
 
@@ -71,16 +73,16 @@ If a row is too large, split it. If a row fails, fix it or flag it with `--note`
 |---|---|---|
 | `create_plan.py` | Write a plan file with frontmatter under `plans/` | `--task`, `--complexity`, `--body-file`, `--template`, `--overwrite` |
 | `create_issues.py` | Write the paired Issue CSV, fully validated | `--plan`, `--rows-file`, `--overwrite` |
-| `update_issue.py` | Row-addressable status and note updates, plus queries | `--id`, `--dev-status`, `--review-status`, `--regression-status`, `--note`, `--next`, `--show`, `--json` |
+| `update_issue.py` | Row-addressable status and note updates, plus queries | `<csv>`, `--id`, `--dev-status`, `--review-status`, `--regression-status`, `--note`, `--next`, `--show`, `--json` |
 | `validate_issues_csv.py` | Validate schema and semantics, all errors in one run | `<csv>` |
 | `list_plans.py` | List existing plans | `--query`, `--json` |
-| `read_plan_frontmatter.py` | Read one plan's frontmatter | `--json` |
+| `read_plan_frontmatter.py` | Read one plan's frontmatter | `<plan-path>`, `--json` |
 
 Every script prints usage with `--help`.
 
 ## Naming and persistence
 
-Plans: `plans/YYYY-MM-DD_HH-mm-ss-<slug>.md`. Issue CSVs: `issues/YYYY-MM-DD_HH-mm-ss-<slug>.csv` with the same timestamp and slug, enforced by `create_issues.py`. Commit `plans/` and `issues/` in the consuming repo when tracking should survive sessions or hand off between agents. Gitignore them for scratch work.
+Plans: `plans/YYYY-MM-DD_HH-mm-ss-<slug>.md`. Issue CSVs: `issues/YYYY-MM-DD_HH-mm-ss-<slug>.csv` with the same timestamp and slug, enforced by `create_issues.py`. A project with an existing `plan/` directory from older runs keeps using it. Commit `plans/` and `issues/` in the consuming repo when tracking should survive sessions or hand off between agents. Gitignore them for scratch work.
 
 ## References
 

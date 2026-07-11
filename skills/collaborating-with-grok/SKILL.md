@@ -11,7 +11,7 @@ Drive the Grok CLI headlessly as an independent collaborator while the calling a
 
 The bridge (`scripts/grok_bridge.py`) wraps `grok -p`, streams progress to stderr, returns structured JSON, and manages multi-turn continuity via `SESSION_ID`. Always go through the bridge — don't invoke `grok` directly — so output parsing, the safe permission default, and session handling stay consistent.
 
-Commands below write `<skill_dir>` for the absolute path of the directory containing this SKILL.md. Your harness reports that path when it loads the skill, for example `~/.claude/skills/collaborating-with-grok`. Substitute it before running.
+Commands below write `<skill_dir>` for the absolute path of the directory containing this SKILL.md. Your harness usually reports that path when it loads the skill. If it does not, use this SKILL.md's own location. Substitute it before running, for example `~/.claude/skills/collaborating-with-grok`.
 
 In Claude Code, run non-trivial calls in the background and watch stderr progress:
 

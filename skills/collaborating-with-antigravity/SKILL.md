@@ -25,7 +25,7 @@ surfaces no conversation ID and no structured output (see below).
 
 Mechanics, upstream issue numbers, and the verified flag surface: [references/agy-cli.md](references/agy-cli.md).
 
-Commands below write `<skill_dir>` for the absolute path of the directory containing this SKILL.md. Your harness reports that path when it loads the skill, for example `~/.claude/skills/collaborating-with-antigravity`. Substitute it before running.
+Commands below write `<skill_dir>` for the absolute path of the directory containing this SKILL.md. Your harness usually reports that path when it loads the skill. If it does not, use this SKILL.md's own location. Substitute it before running, for example `~/.claude/skills/collaborating-with-antigravity`.
 
 ## Safety
 

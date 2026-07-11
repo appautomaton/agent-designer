@@ -1,6 +1,6 @@
 # Setup
 
-Install skills from this repo into the agent harness you already use. Each skill is a self-contained directory holding a `SKILL.md` playbook plus `scripts/`, `references/`, and `assets/`. Pick the skills you want, place them where your harness discovers skills, and approve the bridge commands once.
+Install skills from this repo into the agent harness you already use. Each skill is a self-contained directory holding a `SKILL.md` playbook plus `scripts/`, `references/`, and `assets/`. Pick the skills you want, place them where your harness discovers skills, and set up approvals the way your harness's runbook describes.
 
 ## Runbooks
 

@@ -40,8 +40,14 @@ rm -rf <project>/.codex/skills/<skill-name>/scripts/__pycache__
 
 Codex has no settings allowlist equivalent to Claude Code's `permissions.allow`, so two gates matter instead.
 
-- Approval gate: `codex exec` is non-interactive, and nothing can be approved mid-run. A gated bridge call fails on the spot rather than prompting. Run bridge calls where an escalation can be approved, or accept that a denial surfaces as an immediate error.
-- Sandbox gate: both `read-only` and `workspace-write` block shell network, and every child CLI needs API network to reach its backend. Run the bridge call through an approved escalation, or knowingly grant network for that call.
+- Approval gate: `codex exec` is non-interactive, and nothing can be approved mid-run. A gated bridge call fails on the spot rather than prompting. In interactive sessions, approve the escalation when Codex asks. In `codex exec` runs, grant what the call needs up front.
+- Sandbox gate: both `read-only` and `workspace-write` block shell network, and every child CLI needs API network to reach its backend. Grant shell network to the session that runs bridges:
+
+  ```bash
+  codex --sandbox workspace-write -c 'sandbox_workspace_write.network_access=true'
+  ```
+
+  Expected: bridge calls inside that session reach the child CLI's API. In an externally sandboxed environment, `--sandbox danger-full-access` also works.
 
 For collaborating-with-claude specifically: the child `claude` must be signed in before the first bridge call. The `--help` smoke test in Verify confirms the wiring without any network grant.
 
