@@ -22,8 +22,8 @@ def main() -> int:
     args = parser.parse_args()
 
     path = Path(args.csv_path)
-    if not path.exists():
-        print(f"error: file not found: {path}", file=sys.stderr)
+    if not path.is_file():
+        print(f"error: not a file: {path}", file=sys.stderr)
         return 1
 
     header, rows, start_lines = read_issues(path)
