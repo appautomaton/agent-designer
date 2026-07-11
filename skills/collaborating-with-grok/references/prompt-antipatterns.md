@@ -73,6 +73,39 @@ Fix — one task per run:
 2. Run a separate fix prompt if needed.
 3. Use a third run for docs or roadmap.
 
+## Treating prompt text as access control
+
+Bad:
+```
+Do not read anything outside this directory, so the run is fully isolated.
+```
+
+A prompt cannot enforce a filesystem boundary. Fix — state intended scope concisely and enforce access with CLI policy or external isolation:
+
+```xml
+<scope>
+Work only in the designated workspace and use only the named runtime dependencies.
+</scope>
+```
+
+Then choose the appropriate `--sandbox` profile. Remember that `workspace` constrains writes, not arbitrary reads, and use ACP when live tool auditing is required.
+
+## Repeating or contradicting the contract
+
+Bad:
+```
+Return a summary, findings, and a patch. OUTPUT THE PATCH ONLY.
+```
+
+Fix — choose one exact output shape:
+
+```xml
+<structured_output_contract>
+Return a raw unified diff beginning with `---` and `+++`.
+Do not use Markdown code fences or add prose before or after the diff.
+</structured_output_contract>
+```
+
 ## Unsupported certainty in research
 
 Bad:

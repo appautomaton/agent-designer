@@ -34,9 +34,10 @@ relies on:
 
 Safety: the user's `~/.grok/config.toml` may set
 `permission_mode = "always-approve"`, which auto-approves edits and shell
-commands. To keep delegation read-only by default, the bridge passes
-`--permission-mode default` unless the caller overrides it, so a run never
-silently inherits an auto-approve posture.
+commands. To keep write/shell authority approval-gated by default, the bridge passes
+`--permission-mode default` unless the caller chooses a mutually exclusive
+authority flag. A standalone `--always-approve` grants explicit write/shell
+authority; it is never combined with the safe default.
 """
 
 from __future__ import annotations
@@ -50,6 +51,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.parse
@@ -58,8 +60,12 @@ from typing import Any, Dict, Generator, List, Optional
 
 OUTPUT_FORMATS = ("plain", "json", "streaming-json")
 PERMISSION_MODES = ("default", "plan", "acceptEdits", "auto", "dontAsk", "bypassPermissions")
-SANDBOX_PROFILES = ("off", "workspace", "read-only", "strict")
-EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
+ENFORCED_CLI_PERMISSION_MODES = ("default", "bypassPermissions")
+UNWIRED_CLI_PERMISSION_MODES = tuple(
+    mode for mode in PERMISSION_MODES if mode not in ENFORCED_CLI_PERMISSION_MODES
+)
+BUILTIN_SANDBOX_PROFILES = ("off", "workspace", "devbox", "read-only", "strict")
+EFFORT_LEVELS = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
 
 # Grok prints ANSI-coloured log lines to stderr (e.g. "\x1b[2m...\x1b[0m").
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[=>]")
@@ -68,6 +74,7 @@ ERROR_LINE_RE = re.compile(r"(^|\s)(Error:|ERROR\b|panicked|fatal)", re.IGNORECA
 
 
 def emit_json(result: Dict[str, Any], exit_code: int = 0) -> None:
+    result.setdefault("complete", False)
     print(json.dumps(result, indent=2, ensure_ascii=False))
     raise SystemExit(exit_code)
 
@@ -87,6 +94,180 @@ def find_executable(name: str) -> str:
 
 def strip_ansi(text: str) -> str:
     return ANSI_RE.sub("", text)
+
+
+def parse_sandbox_profile(value: str) -> str:
+    """Preserve built-in/custom profile names with a targeted Codex-term hint."""
+    if value == "":
+        return value
+    if value == "workspace-write":
+        raise argparse.ArgumentTypeError(
+            "Grok calls this profile 'workspace'; use `--sandbox workspace` "
+            "(`workspace-write` is Codex CLI terminology)."
+        )
+    # Grok also accepts names from global/project sandbox.toml files and
+    # validates unknown profiles fail-closed.
+    return value
+
+
+def resolve_workspace_path(path: Path, cd: Path) -> Path:
+    """Resolve an input path, using --cd as the base for relative paths."""
+    expanded = path.expanduser()
+    if not expanded.is_absolute():
+        expanded = cd / expanded
+    return expanded.resolve()
+
+
+def permission_mode_error(mode: Optional[str]) -> Optional[str]:
+    """Reject modes that Grok 0.2.93 parses but does not enforce from the CLI."""
+    if mode not in UNWIRED_CLI_PERMISSION_MODES:
+        return None
+    return (
+        f"`--permission-mode {mode}` is accepted but not enforced by Grok CLI 0.2.93. "
+        "The bridge refuses to provide a false authority or safety signal. Use `default`, "
+        "explicit `--allow`/`--deny` rules, or `--always-approve`/`bypassPermissions` only "
+        "with user consent. For acceptEdits/dontAsk policy, configure `defaultMode` in the "
+        "applicable `.claude/settings.json`."
+    )
+
+
+def materialize_context_prompt(
+    prompt: str,
+    context_file: Path,
+    temp_dir: Optional[Path] = None,
+) -> Path:
+    """Combine an instruction and context file into a native prompt file.
+
+    Grok 0.2.93 ignores stdin when `-p` is present. A temporary prompt file
+    preserves large-file behavior without putting the context on argv.
+    """
+    context = context_file.read_text(encoding="utf-8", errors="replace")
+    fd, name = tempfile.mkstemp(
+        prefix="grok-bridge-context-",
+        suffix=".md",
+        dir=str(temp_dir) if temp_dir is not None else None,
+        text=True,
+    )
+    path = Path(name)
+    payload = json.dumps(
+        {"source": context_file.as_posix(), "content": context},
+        ensure_ascii=False,
+    )
+    # Prevent context text from closing the XML wrapper. JSON escapes remain
+    # legible to the model while keeping arbitrary file contents data-only.
+    payload = (
+        payload.replace("&", "\\u0026")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(prompt.rstrip())
+            handle.write('\n\n<context_file format="json" trust="untrusted-data">\n')
+            handle.write(payload)
+            handle.write("\n</context_file>\n")
+    except BaseException:
+        # os.fdopen owns fd after it succeeds; close defensively when it fails.
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        path.unlink(missing_ok=True)
+        raise
+    return path
+
+
+def find_ancestor_git_root(cd: Path) -> Optional[Path]:
+    """Return the nearest Git root marker at or above cd, if one exists."""
+    for candidate in (cd, *cd.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
+def completion_state(
+    success: bool,
+    output_format: str,
+    stop_reason: Optional[str],
+) -> Optional[bool]:
+    """Return known completion, or None when plain output hides stopReason."""
+    if not success:
+        return False
+    if output_format == "plain":
+        return None
+    return stop_reason == "EndTurn"
+
+
+def session_recovery_warning(output_format: str) -> str:
+    if output_format == "plain":
+        return (
+            "SESSION_ID recovered from session storage; plain output does not emit it, so resume "
+            "is available on a best-effort basis."
+        )
+    return (
+        "SESSION_ID was recovered from the session directory because grok ended before emitting "
+        "it; resume with `--SESSION_ID` to continue."
+    )
+
+
+def configuration_warnings(args: argparse.Namespace, cd: Path) -> List[str]:
+    """Describe authority, observability, and isolation sharp edges."""
+    warnings: List[str] = []
+    if args.always_approve:
+        warnings.append(
+            "`--always-approve` auto-approves all grok tool actions "
+            "(writes + shell) without prompting."
+        )
+    if args.permission_mode == "bypassPermissions":
+        warnings.append(
+            f"`--permission-mode {args.permission_mode}` reduces approval gating; "
+            "grok may edit files or run commands."
+        )
+    if args.permission_mode == "":
+        warnings.append(
+            "No `--permission-mode` set: grok inherits ~/.grok/config.toml, which may "
+            "auto-approve tools. Omit the flag for the bridge's gated `default` mode."
+        )
+    if args.output_format == "plain":
+        warnings.append(
+            "`--output-format plain` cannot capture stopReason, so `complete` will be null."
+        )
+    if args.sandbox == "workspace":
+        warnings.append(
+            "`--sandbox workspace` reads everywhere and writes only CWD, ~/.grok, and temp "
+            "directories. Prompt scope is not a hard read boundary; use `strict`, a custom "
+            "deny profile, or external isolation when required."
+        )
+    elif args.sandbox == "devbox":
+        warnings.append(
+            "`--sandbox devbox` permits broad filesystem writes and is intended only for "
+            "disposable development VMs."
+        )
+    elif args.sandbox and args.sandbox not in BUILTIN_SANDBOX_PROFILES:
+        warnings.append(
+            f"`--sandbox {args.sandbox}` is a custom profile; verify the applicable "
+            "sandbox.toml because its read, write, deny, and network rules are external "
+            "to this bridge."
+        )
+
+    git_root = find_ancestor_git_root(cd)
+    if git_root is not None and git_root != cd:
+        warnings.append(
+            f"`--cd` is nested below Git root {git_root.as_posix()!r}; grok may discover "
+            "parent instructions, configuration, and repository metadata. Use a standalone "
+            "workspace outside the parent repository for stronger isolation."
+        )
+
+    allow_tools = [tool.strip() for tool in args.tools.split(",") if tool.strip()]
+    if any(tool in ("run_terminal_cmd", "web_search", "web_fetch") for tool in allow_tools):
+        warnings.append(
+            "`--tools` allowlist includes run_terminal_cmd or web_search/web_fetch: on the "
+            "GrokBuild-lineage coding agent (e.g. grok-4.5) these allowlists fail session build with "
+            "run_terminal_cmd's auto-background RequirementError, which is still "
+            "present for those tool combinations on CLI 0.2.93. Use a read-only allowlist "
+            "without those tools, or keep the default toolset and use `--disallowed-tools`."
+        )
+    return warnings
 
 
 def preflight_check(cd: Path) -> Optional[str]:
@@ -137,6 +318,9 @@ def list_models() -> Dict[str, Any]:
 
 
 def build_command(args: argparse.Namespace, cd: Path, prompt: str) -> List[str]:
+    mode_error = permission_mode_error(args.permission_mode)
+    if mode_error:
+        raise ValueError(mode_error)
     cmd = ["grok"]
     if args.prompt_file is not None:
         cmd.extend(["--prompt-file", str(args.prompt_file)])
@@ -148,7 +332,7 @@ def build_command(args: argparse.Namespace, cd: Path, prompt: str) -> List[str]:
     if args.model:
         cmd.extend(["-m", args.model])
 
-    # Session continuity (mutually exclusive — enforced in main()).
+    # Session continuity (mutually exclusive in argparse).
     if args.SESSION_ID:
         cmd.extend(["-r", args.SESSION_ID])
     elif args.session_id:
@@ -156,10 +340,14 @@ def build_command(args: argparse.Namespace, cd: Path, prompt: str) -> List[str]:
     elif args.continue_session:
         cmd.append("-c")
 
-    if args.permission_mode:
-        cmd.extend(["--permission-mode", args.permission_mode])
+    if args.always_approve and args.permission_mode is not None:
+        raise ValueError("--always-approve and --permission-mode are mutually exclusive")
     if args.always_approve:
         cmd.append("--always-approve")
+    elif args.permission_mode is None:
+        cmd.extend(["--permission-mode", "default"])
+    elif args.permission_mode:
+        cmd.extend(["--permission-mode", args.permission_mode])
     if args.sandbox:
         cmd.extend(["--sandbox", args.sandbox])
     if args.tools:
@@ -191,32 +379,22 @@ def stream_command(
     cwd: Path,
     timeout_seconds: float,
     stderr_sink: List[str],
-    stdin_file: Optional[Path] = None,
 ) -> Generator[str, None, int]:
     """Run grok, yield stdout lines, and forward cleaned stderr as progress."""
     resolved = cmd.copy()
     resolved[0] = find_executable(cmd[0])
 
-    stdin_handle = None
-    stdin_target: Any = subprocess.DEVNULL
-    if stdin_file is not None:
-        stdin_handle = stdin_file.open("r", encoding="utf-8", errors="replace")
-        stdin_target = stdin_handle
-    try:
-        proc = subprocess.Popen(
-            resolved,
-            shell=False,
-            stdin=stdin_target,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            universal_newlines=True,
-            encoding="utf-8",
-            errors="replace",
-            cwd=str(cwd),
-        )
-    finally:
-        if stdin_handle is not None:
-            stdin_handle.close()
+    proc = subprocess.Popen(
+        resolved,
+        shell=False,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=str(cwd),
+    )
 
     out_q: "queue.Queue[Optional[str]]" = queue.Queue()
     started_at = time.time()
@@ -356,14 +534,35 @@ def session_cwd_encodings(cd: Path) -> List[str]:
     return encodings
 
 
-def collect_session_telemetry(cd: Path, session_id: Optional[str], run_start: float) -> Dict[str, Any]:
+def snapshot_session_dirs(cd: Path) -> set[str]:
+    """Record existing session directories so recovery ignores older runs."""
+    existing: set[str] = set()
+    try:
+        for enc in session_cwd_encodings(cd):
+            sessions_root = Path.home() / ".grok" / "sessions" / enc
+            if sessions_root.is_dir():
+                existing.update(
+                    str(path) for path in sessions_root.iterdir() if path.is_dir()
+                )
+    except OSError:
+        pass
+    return existing
+
+
+def collect_session_telemetry(
+    cd: Path,
+    session_id: Optional[str],
+    run_start: float,
+    preexisting_session_dirs: Optional[set[str]] = None,
+) -> Dict[str, Any]:
     """Recover post-run telemetry from grok's session files.
 
     Headless grok emits no tool events, but `updates.jsonl` records every tool
-    call and `summary.json` records the model that actually answered. When the
-    run was killed before the terminal event (no session_id), the session dir
-    created by this run is found by mtime — its name IS the session id, so a
-    timed-out run stays resumable. Best-effort: returns {} on any failure.
+    call and `summary.json` records the model that actually answered. Explicit
+    resume/new-session IDs provide a deterministic hint. Otherwise,
+    recovery considers only session directories absent from the pre-run
+    snapshot, then uses mtime. Concurrent new runs in the same cwd remain
+    best-effort. Returns {} on any failure.
     """
     telemetry: Dict[str, Any] = {}
     try:
@@ -374,9 +573,12 @@ def collect_session_telemetry(cd: Path, session_id: Optional[str], run_start: fl
                 session_dir = sessions_root / session_id
                 break
             if sessions_root.is_dir():
+                excluded = preexisting_session_dirs or set()
                 fresh = [
                     d for d in sessions_root.iterdir()
-                    if d.is_dir() and d.stat().st_mtime >= run_start - 2
+                    if d.is_dir()
+                    and str(d) not in excluded
+                    and d.stat().st_mtime >= run_start - 2
                 ]
                 if fresh:
                     session_dir = max(fresh, key=lambda d: d.stat().st_mtime)
@@ -384,6 +586,7 @@ def collect_session_telemetry(cd: Path, session_id: Optional[str], run_start: fl
                     break
         if session_dir is None:
             return telemetry
+        telemetry["session_id"] = session_dir.name
 
         summary_path = session_dir / "summary.json"
         if summary_path.is_file():
@@ -428,11 +631,11 @@ def collect_session_telemetry(cd: Path, session_id: Optional[str], run_start: fl
     return telemetry
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Grok CLI Bridge")
     parser.add_argument("--PROMPT", default="", help="Instruction to send to grok. Use this or --prompt-file.")
-    parser.add_argument("--prompt-file", type=Path, default=None, help="Read the whole prompt from a file (grok --prompt-file). Avoids argv/shell-quoting limits.")
-    parser.add_argument("--stdin-file", type=Path, default=None, help="Pipe a context/handoff file to grok's stdin while --PROMPT carries the instruction. Mutually exclusive with --prompt-file.")
+    parser.add_argument("--prompt-file", type=Path, default=None, help="Read the whole prompt from a file (grok --prompt-file). Relative paths resolve against --cd.")
+    parser.add_argument("--stdin-file", type=Path, default=None, help="Combine a context/handoff file with the instruction in --PROMPT. Relative paths resolve against --cd; mutually exclusive with --prompt-file.")
     parser.add_argument("--cd", type=Path, default=None, help="Workspace root for grok (maps to grok --cwd). Required unless --list-models.")
     parser.add_argument("--list-models", action="store_true", help="Print models from `grok models` as JSON and exit (no prompt/--cd needed).")
 
@@ -444,9 +647,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", default="", help="Model ID (e.g. grok-4.5 as of CLI 0.2.93). Discover with --list-models — do not hardcode.")
     parser.add_argument("--output-format", default="streaming-json", choices=OUTPUT_FORMATS, help="grok output format. Default streaming-json (live progress + SESSION_ID).")
 
-    parser.add_argument("--permission-mode", default="default", choices=("",) + PERMISSION_MODES, help="Tool-approval mode. Default 'default' (gated actions are cancelled, not auto-approved). Pass '' to inherit grok config.")
-    parser.add_argument("--always-approve", action="store_true", help="Auto-approve every tool action (writes + shell). Use only with explicit user consent, ideally in an isolated worktree.")
-    parser.add_argument("--sandbox", default="", choices=("",) + SANDBOX_PROFILES, help="OS-level sandbox profile: off, workspace, read-only, strict.")
+    authority = parser.add_mutually_exclusive_group()
+    authority.add_argument("--permission-mode", default=None, choices=("",) + PERMISSION_MODES, help="Tool-approval mode. Omit for gated 'default'; pass '' to inherit grok config. Grok 0.2.93 only enforces default and bypassPermissions from this CLI flag.")
+    authority.add_argument("--always-approve", action="store_true", help="Auto-approve every tool action (writes + shell). Use only with explicit user consent, ideally in an isolated worktree.")
+    parser.add_argument("--sandbox", default=None, type=parse_sandbox_profile, help="Grok sandbox profile: off, workspace, devbox, read-only, strict, or a custom sandbox.toml profile.")
     parser.add_argument("--tools", default="", help='Allowlist of built-in tools (comma-separated), e.g. "read_file,grep,list_dir" for hard read-only.')
     parser.add_argument("--disallowed-tools", default="", help='Denylist of built-in tools (comma-separated). Supports Agent / Agent(type) entries.')
     parser.add_argument("--allow", action="append", default=[], help='Permission allow rule, e.g. "Bash(npm*)" or "WebFetch(domain:docs.rs)". Repeatable.')
@@ -461,18 +665,22 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--timeout", type=float, default=0, help="Bridge wall-clock kill, in seconds. Default: no bridge timeout.")
     parser.add_argument("--return-all-messages", action="store_true", help="Include the captured reasoning and raw events in the result.")
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def main() -> None:
     args = parse_args()
-    warnings: List[str] = []
 
     if args.list_models:
         if shutil.which("grok") is None:
             emit_json({"success": False, "error": "Grok CLI not found in PATH."}, exit_code=1)
         result = list_models()
+        result["complete"] = bool(result.get("success"))
         emit_json(result, exit_code=0 if result.get("success") else 1)
+
+    mode_error = permission_mode_error(args.permission_mode)
+    if mode_error:
+        emit_json({"success": False, "error": mode_error}, exit_code=2)
 
     if args.cd is None:
         emit_json({"success": False, "error": "`--cd` is required (omit it only with --list-models)."}, exit_code=2)
@@ -483,9 +691,15 @@ def main() -> None:
     if args.prompt_file is not None and args.stdin_file is not None:
         emit_json({"success": False, "error": "Use either `--prompt-file` or `--stdin-file`, not both."}, exit_code=2)
     if args.stdin_file is not None and not args.PROMPT:
-        emit_json({"success": False, "error": "`--stdin-file` requires `--PROMPT` (the instruction); the file is piped to grok as context."}, exit_code=2)
+        emit_json({"success": False, "error": "`--stdin-file` requires `--PROMPT` (the instruction); the bridge combines both into a native prompt file."}, exit_code=2)
     if args.timeout < 0:
         emit_json({"success": False, "error": "`--timeout` must be zero or a positive number of seconds."}, exit_code=2)
+
+    cd = args.cd.expanduser().resolve()
+    if args.prompt_file is not None:
+        args.prompt_file = resolve_workspace_path(args.prompt_file, cd)
+    if args.stdin_file is not None:
+        args.stdin_file = resolve_workspace_path(args.stdin_file, cd)
 
     prompt = args.PROMPT
     if args.prompt_file is not None:
@@ -498,37 +712,12 @@ def main() -> None:
     if args.stdin_file is not None and not args.stdin_file.is_file():
         emit_json({"success": False, "error": f"Stdin context file not found: {args.stdin_file}"}, exit_code=2)
 
-    cd: Path = args.cd
     error = preflight_check(cd)
     if error:
         emit_json({"success": False, "error": error}, exit_code=1)
 
-    if args.always_approve:
-        warnings.append(
-            "`--always-approve` auto-approves all grok tool actions (writes + shell) without prompting."
-        )
-    if args.permission_mode in ("auto", "bypassPermissions", "dontAsk"):
-        warnings.append(
-            f"`--permission-mode {args.permission_mode}` reduces approval gating; grok may edit files or run commands."
-        )
-    if not args.permission_mode and not args.always_approve:
-        warnings.append(
-            "No `--permission-mode` set: grok inherits ~/.grok/config.toml, which may be 'always-approve'. "
-            "Pass `--permission-mode default` for read-only delegation."
-        )
-    if args.output_format == "plain":
-        warnings.append("`--output-format plain` cannot capture SESSION_ID; multi-turn resume will be unavailable.")
-    allow_tools = [t.strip() for t in args.tools.split(",") if t.strip()]
-    if any(t in ("web_search", "web_fetch") for t in allow_tools):
-        warnings.append(
-            "`--tools` allowlist includes web_search/web_fetch: on the GrokBuild-lineage coding "
-            "agent (e.g. grok-4.5) the session build fails outright (RequirementError on "
-            "run_terminal_cmd's auto-background default; no allowlist composition works — still "
-            "true on CLI 0.2.93). For live web/X search, keep the default toolset and instead "
-            'pass `--disallowed-tools "run_terminal_cmd,search_replace"`.'
-        )
-
-    cmd = build_command(args, cd, prompt)
+    warnings = configuration_warnings(args, cd)
+    preexisting_session_dirs = snapshot_session_dirs(cd)
 
     state: Dict[str, Any] = {
         "agent_messages": "",
@@ -546,9 +735,14 @@ def main() -> None:
     raw_json_lines: List[str] = []
     start_time = time.time()
     returncode = 1
+    temporary_prompt_file: Optional[Path] = None
 
     try:
-        generator = stream_command(cmd, cd.absolute(), args.timeout, stderr_sink, stdin_file=args.stdin_file)
+        if args.stdin_file is not None:
+            temporary_prompt_file = materialize_context_prompt(prompt, args.stdin_file)
+            args.prompt_file = temporary_prompt_file
+        cmd = build_command(args, cd, prompt)
+        generator = stream_command(cmd, cd.absolute(), args.timeout, stderr_sink)
         while True:
             try:
                 line = next(generator)
@@ -570,6 +764,9 @@ def main() -> None:
                 state["agent_messages"] += line + "\n"
     except Exception as exc:  # pragma: no cover - defensive boundary
         emit_json({"success": False, "error": f"Failed to run grok: {exc}", "warnings": warnings}, exit_code=1)
+    finally:
+        if temporary_prompt_file is not None:
+            temporary_prompt_file.unlink(missing_ok=True)
 
     if args.output_format == "json":
         parse_json_blob("\n".join(raw_json_lines), state)
@@ -581,6 +778,7 @@ def main() -> None:
 
     # Exit code is authoritative; stopReason signals completeness.
     success = returncode == 0
+    complete = completion_state(success, args.output_format, stop_reason)
     if success and stop_reason and stop_reason != "EndTurn":
         warnings.append(
             f"grok stopReason={stop_reason!r}: the turn ended without a clean completion "
@@ -602,13 +800,14 @@ def main() -> None:
         if not errors:
             errors.append("No response captured from grok.")
 
-    telemetry = collect_session_telemetry(cd, state["session_id"], start_time)
-    if state["session_id"] is None and telemetry.get("recovered_session_id"):
-        state["session_id"] = telemetry["recovered_session_id"]
-        warnings.append(
-            "SESSION_ID was recovered from the session directory created by this run "
-            "(grok was killed before emitting it); resume with `--SESSION_ID` to continue."
-        )
+    session_hint = state["session_id"] or args.SESSION_ID or args.session_id or None
+    telemetry = collect_session_telemetry(
+        cd, session_hint, start_time, preexisting_session_dirs
+    )
+    telemetry_session_id = telemetry.get("session_id") or telemetry.get("recovered_session_id")
+    if state["session_id"] is None and telemetry_session_id:
+        state["session_id"] = telemetry_session_id
+        warnings.append(session_recovery_warning(args.output_format))
     actual_model = telemetry.get("model") or args.model
     actual_agent = telemetry.get("agent") or ""
     # Only warn when the effective agent is the alternate (composer/cursor) lineage —
@@ -635,7 +834,7 @@ def main() -> None:
             "a slow research loop, not a hang. Rerun with a larger `--timeout` or resume with `--SESSION_ID`."
         )
 
-    result: Dict[str, Any] = {"success": success}
+    result: Dict[str, Any] = {"success": success, "complete": complete}
     if state["session_id"] is not None:
         result["SESSION_ID"] = state["session_id"]
     result["agent_messages"] = agent_messages

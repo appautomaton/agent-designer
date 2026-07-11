@@ -1,101 +1,39 @@
 # Grok Prompt Template
 
-Quick plain-text starters for common tasks. For complex or high-stakes work, use the XML prompt blocks in `references/prompt-blocks.md` and recipes in `references/prompt-recipes.md`.
+Start with `<task>`. Add only the blocks that materially constrain the run. See [prompt-recipes.md](../references/prompt-recipes.md) for task-specific examples and [prompt-blocks.md](../references/prompt-blocks.md) for optional blocks.
 
-## Analysis / Plan (read-only)
+```xml
+<task>
+State one concrete objective, the relevant repository context, and the expected end state.
+</task>
 
-Run with `--tools "read_file,grep,list_dir"`.
+<scope>
+Name the workspace, allowed external dependencies, and explicit exclusions.
+Omit this block for routine read-only analysis.
+</scope>
 
-```
-Task:
-- <what to analyze>
+<done_criteria>
+List concrete artifacts and checks.
+Omit this block when the answer itself is the only deliverable.
+</done_criteria>
 
-Repo pointers:
-- <file paths + approximate line numbers>
+<grounding_rules>
+Ground claims in provided context or tool output and label inferences.
+Use this for diagnosis, review, and research.
+</grounding_rules>
 
-Constraints:
-- Keep it concise and actionable.
-- Reference files/lines instead of pasting code.
+<action_safety>
+Keep changes scoped and avoid unrelated or irreversible actions.
+Use this for write-capable work.
+</action_safety>
 
-Output:
-- Bullet list of findings and a proposed plan.
-```
+<verification_loop>
+Verify the result against the task requirements before finalizing.
+</verification_loop>
 
-## Patch (Unified Diff only)
-
-Run with `--tools "read_file,grep,list_dir"` so grok cannot edit.
-
-```
-Task:
-- <what to change>
-
-Repo pointers:
-- <file paths + approximate line numbers>
-
-Constraints:
-- OUTPUT: Unified Diff Patch ONLY.
-- Minimal, focused changes. No unrelated refactors.
-
-Output:
-- A single unified diff patch.
+<structured_output_contract>
+Specify the exact final response shape and nothing more.
+</structured_output_contract>
 ```
 
-## Review
-
-```
-Task:
-- Review the following unified diff for correctness, edge cases, and missing tests.
-
-Constraints:
-- Return a checklist of issues + suggested fixes (no code unless requested).
-
-Input diff:
-<paste unified diff here>
-```
-
-## Web / X research (live)
-
-Run with `--disallowed-tools "run_terminal_cmd,search_replace"` (keeps web_search).
-
-```
-Task:
-- <current question about releases, facts, or X posts>
-
-Constraints:
-- Use web and X search. Cite a source URL for each key fact.
-- Separate facts from inferences; flag anything search couldn't confirm.
-
-Output:
-- Findings with source URLs, then open questions.
-```
-
-## Implementation (worktree + writes)
-
-Run in an isolated worktree with `--always-approve` (or `--permission-mode acceptEdits`).
-
-```
-Task:
-- <what to implement>
-
-Repo pointers:
-- <entry file paths + approximate line numbers>
-
-Done criteria:
-- <specific acceptance criteria>
-
-Constraints:
-- Stay focused on the stated task. No unrelated refactors.
-
-Output:
-- List of files changed and a brief summary.
-```
-
-## When to upgrade to XML blocks
-
-Use XML prompt blocks (`references/prompt-blocks.md`) when:
-- The task is multi-step and you need a `<completeness_contract>`.
-- Correctness matters and you want a `<verification_loop>`.
-- You're doing review/research and need `<grounding_rules>` or `<citation_rules>`.
-- grok keeps stopping early — add `<default_follow_through_policy>`.
-
-See `references/prompt-recipes.md` for ready-to-use end-to-end templates.
+CLI flags enforce tool authority and sandbox posture. Prompt text communicates intent; it does not create a security boundary.

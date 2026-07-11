@@ -3,6 +3,8 @@
 Composable XML-tagged blocks for structuring grok prompts.
 Use selectively — pick only the blocks your task needs.
 
+Keep enforcement and instruction separate: CLI flags and external sandboxes control access; these blocks communicate intent, scope, and acceptance criteria.
+
 ## Core
 
 ### `<task>`
@@ -13,6 +15,30 @@ Use in every prompt. State the job, the context, and what done looks like.
 <task>
 Describe the concrete job, the relevant repository or failure context, and the expected end state.
 </task>
+```
+
+### `<scope>`
+
+Use for write-capable, sensitive, or deliberately narrow work. Name the workspace, allowed dependencies, and exclusions without pretending the prompt is a sandbox.
+
+```xml
+<scope>
+Work only in the designated workspace.
+Use only the explicitly named external runtime dependencies.
+Do not modify unrelated files or perform external side effects.
+</scope>
+```
+
+### `<done_criteria>`
+
+Use when completion has concrete artifacts or checks.
+
+```xml
+<done_criteria>
+Produce the named artifacts.
+Run the specified checks successfully.
+Leave the result reproducible from repository inputs.
+</done_criteria>
 ```
 
 ## Output shape

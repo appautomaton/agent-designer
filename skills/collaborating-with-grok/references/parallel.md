@@ -27,20 +27,22 @@ Each run returns its own `SESSION_ID`; keep them if you want to follow up on a s
 
 ## Worktree isolation for writes
 
-When multiple grok instances need write access, give each its own git worktree so they can't clobber each other. Be explicit about `--cd` since grok's config may auto-approve.
+When multiple grok instances need write access, give each its own standalone git worktree so they cannot clobber each other. Obtain write consent and pass authority explicitly.
 
 ```bash
 git worktree add -b grok/auth-fix /tmp/wt-auth HEAD
 git worktree add -b grok/perf-fix /tmp/wt-perf HEAD
 
 python3 <skill_dir>/scripts/grok_bridge.py \
-  --cd "/tmp/wt-auth" --always-approve \
+  --cd "/tmp/wt-auth" --always-approve --sandbox workspace \
   --PROMPT "Fix the auth bug in src/auth/login. Keep changes scoped, then summarize."
 
 python3 <skill_dir>/scripts/grok_bridge.py \
-  --cd "/tmp/wt-perf" --always-approve \
+  --cd "/tmp/wt-perf" --always-approve --sandbox workspace \
   --PROMPT "Optimize the query in src/db/queries. Keep changes scoped, then summarize."
 ```
+
+For non-trivial implementations, replace the one-line examples with the canonical isolated-implementation recipe from [prompt-recipes.md](prompt-recipes.md). Treat a lane as delivered only when its bridge result has `success: true` and `complete: true`.
 
 Review each result before merging:
 
@@ -65,6 +67,7 @@ grok also has native `grok worktree` / `-w` support, but for portability across 
 ## Worktree tips
 
 - Put worktrees in `/tmp` or outside the repo.
+- Remember that `workspace` limits writes, not arbitrary reads; use stronger external isolation when required.
 - Use `git worktree add --detach /tmp/wt-readonly HEAD` for read-only codebase snapshots.
 - `node_modules`, virtualenvs, caches, and build outputs are not shared automatically.
 - The same branch cannot be checked out in multiple worktrees.

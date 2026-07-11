@@ -36,6 +36,6 @@ python3 skills/collaborating-with-grok/scripts/grok_bridge.py \
 
 ## Alternatives
 
-- For large or generated prompts, write the prompt to a file and pass `--prompt-file /tmp/prompt.md`. grok reads it natively, sidestepping argv and shell-quoting limits entirely.
+- For large or generated prompts, write the prompt to a file and pass `--prompt-file prompts/task.md`. Relative paths resolve against `--cd`; absolute paths are unchanged. grok reads the file natively, sidestepping argv and shell-quoting limits entirely.
 - Escape backticks manually as `` \` ``.
 - Avoid Markdown backticks in CLI prompts.

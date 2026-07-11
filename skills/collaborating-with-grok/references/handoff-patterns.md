@@ -13,7 +13,7 @@ python3 skills/collaborating-with-grok/scripts/grok_bridge.py \
   --PROMPT "$PROMPT"
 ```
 
-Ask grok for evidence, file paths, line numbers, and a compact recommendation. The primary agent verifies the cited files before acting. Tool calls aren't visible in headless output — trust the answer only after checking the files it claims to have read.
+Ask grok for evidence, file paths, line numbers, and a compact recommendation. The primary agent verifies the cited files before acting. Tool calls are not visible live in headless output; use ACP if live command auditing is required.
 
 ## Live web / X research
 
@@ -38,45 +38,49 @@ When a generated plan, review packet, or issue bundle is too large or too shell-
 python3 skills/collaborating-with-grok/scripts/grok_bridge.py \
   --cd "/path/to/repo" \
   --tools "read_file,grep,list_dir" \
-  --prompt-file /tmp/grok-handoff.md
+  --prompt-file prompts/grok-handoff.md
 ```
 
-**Context file + a short instruction** — author the context/plan once, then steer it with text. The file is piped to grok as context; `--PROMPT` carries the ask (verified: grok folds piped stdin into the prompt):
+Relative `--prompt-file` and `--stdin-file` paths resolve against `--cd`; use an absolute path only when the handoff intentionally lives elsewhere.
+
+**Context file + a short instruction** — author the context/plan once, then steer it with text. `--PROMPT` carries the ask; the bridge combines it with the context in a temporary native prompt file because Grok 0.2.93 ignores stdin when `-p` is present:
 
 ```bash
 python3 skills/collaborating-with-grok/scripts/grok_bridge.py \
   --cd "/path/to/repo" \
   --tools "read_file,grep,list_dir" \
   --stdin-file /tmp/grok-context.md \
-  --PROMPT "Using the piped context, produce a prioritized review. Cite file:line."
+  --PROMPT "Using the supplied context, produce a prioritized review. Cite file:line."
 ```
 
-Keep the handoff itself elegant and self-consistent — point at repo paths instead of pasting code, state the output contract, and name what is out of scope.
+Keep the handoff self-consistent: one objective, relevant path pointers, scope, done criteria when applicable, verification, and an exact output contract. Use [prompt-recipes.md](prompt-recipes.md) rather than inventing a parallel format.
 
 ## Read-only patch proposal
 
 When you want implementation help but don't want grok to edit files.
 
 - Run with `--tools "read_file,grep,list_dir"` (no edit tool present).
-- Ask for `OUTPUT: Unified Diff Patch ONLY`.
+- Use the narrow-fix recipe's raw-diff contract: begin with `---`/`+++`, with no Markdown fences or surrounding prose.
 - Include the expected behavior and tests to satisfy.
 
-After grok returns a patch, inspect it before applying with `git apply`.
+After grok returns a patch, confirm it is raw diff text and inspect it before applying with `git apply`.
 
 ## Isolated write handoff
 
-Grant write access only in an isolated worktree, preferably under `/tmp`. Because grok's config may be `always-approve`, be explicit about the directory.
+Grant write access only in an isolated worktree, preferably outside the parent repository. Obtain user consent, pass `--always-approve` explicitly, and pair it with the appropriate Grok sandbox profile.
 
 ```bash
 git worktree add -b grok/<task-name> /tmp/grok-<task-name> HEAD
 
 python3 skills/collaborating-with-grok/scripts/grok_bridge.py \
   --cd "/tmp/grok-<task-name>" \
-  --always-approve \
-  --PROMPT "Implement the focused fix in <file>. Keep changes scoped. Then summarize what changed."
+  --always-approve --sandbox workspace \
+  --prompt-file prompts/grok-task.md
 ```
 
-`--always-approve` lets grok edit and run shell. Alternatives: `--permission-mode acceptEdits` (edits only) or scoped rules like `--allow "Edit(src/**)" --deny "Bash(rm*)"`. After completion:
+Build `prompts/grok-task.md` from the isolated-implementation recipe. `--always-approve` lets grok edit and run shell and is mutually exclusive with `--permission-mode`. For narrower authority, prefer explicit rules such as `--allow "Edit(src/**)" --deny "Bash(rm*)"`; Grok 0.2.93 accepts `--permission-mode acceptEdits` but does not enforce it from the CLI.
+
+`--sandbox workspace` limits writes but not arbitrary reads. A worktree nested inside a larger repository can inherit parent instructions and metadata; use a standalone directory plus `strict` or an external container when hard read isolation matters. After completion:
 
 ```bash
 git -C /tmp/grok-<task-name> diff
