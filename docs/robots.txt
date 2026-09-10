@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://appautomaton.renocrypt.com/agent-designer/sitemap.xml
+Sitemap: https://appautomaton.com/agent-designer/sitemap.xml
